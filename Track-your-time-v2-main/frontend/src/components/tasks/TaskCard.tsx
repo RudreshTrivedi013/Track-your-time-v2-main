@@ -79,8 +79,9 @@ export function TaskCard({ task }: TaskCardProps) {
 
   return (
     <div
+      onClick={() => setIsEditOpen(true)}
       className={cn(
-        'flex items-center gap-2 rounded-2xl border border-border border-l-2 bg-bg-surface py-3 pl-4 pr-2',
+        'group cursor-pointer flex items-center gap-2 rounded-2xl border border-border border-l-2 bg-bg-surface py-3 pl-4 pr-2 transition-colors hover:bg-white/[0.02]',
         accent,
         isDone && 'opacity-60',
       )}
@@ -108,7 +109,10 @@ export function TaskCard({ task }: TaskCardProps) {
       {/* Icon-only, so the title gets the horizontal space instead of two
           words of button label. aria-label + title keep it accessible and
           discoverable on hover. */}
-      <div className="ml-2 flex shrink-0 items-center gap-0.5">
+      <div 
+        className="ml-2 flex shrink-0 items-center gap-0.5"
+        onClick={(e) => e.stopPropagation()}
+      >
         {isDone ? (
           <Button
             variant="secondary"
