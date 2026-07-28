@@ -1,0 +1,119 @@
+[
+  {
+    "name": "one_time_task",
+    "transcript": "Remind me to call the dentist tomorrow at 3pm",
+    "current_datetime": "2026-06-30T10:00:00+00:00",
+    "expected": {
+      "tasks": [
+        {
+          "title": "Call the dentist",
+          "due_date": "2026-07-01",
+          "due_time": "15:00",
+          "recurrence": "none",
+          "interval_minutes": null,
+          "notes": [],
+          "ambiguous_fields": []
+        }
+      ]
+    }
+  },
+  {
+    "name": "recurring_daily_task",
+    "transcript": "Remind me to take my vitamins every day at 8am",
+    "current_datetime": "2026-06-30T10:00:00+00:00",
+    "expected": {
+      "tasks": [
+        {
+          "title": "Take vitamins",
+          "due_date": "2026-07-01",
+          "due_time": "08:00",
+          "recurrence": "daily",
+          "interval_minutes": null,
+          "notes": [],
+          "ambiguous_fields": []
+        }
+      ]
+    }
+  },
+  {
+    "name": "multiple_times_per_day",
+    "transcript": "Remind me to drink water every 2 hours",
+    "current_datetime": "2026-06-30T10:00:00+00:00",
+    "expected": {
+      "tasks": [
+        {
+          "title": "Drink water",
+          "due_date": "2026-06-30",
+          "due_time": "12:00",
+          "recurrence": "interval",
+          "interval_minutes": 120,
+          "notes": [],
+          "ambiguous_fields": []
+        }
+      ]
+    }
+  },
+  {
+    "name": "relative_time",
+    "transcript": "Remind me to check the oven in 20 minutes",
+    "current_datetime": "2026-06-30T10:00:00+00:00",
+    "expected": {
+      "tasks": [
+        {
+          "title": "Check the oven",
+          "due_date": "2026-06-30",
+          "due_time": "10:20",
+          "recurrence": "none",
+          "interval_minutes": null,
+          "notes": [],
+          "ambiguous_fields": []
+        }
+      ]
+    }
+  },
+  {
+    "name": "ambiguous_time",
+    "transcript": "Remind me to water the plants tomorrow morning",
+    "current_datetime": "2026-06-30T10:00:00+00:00",
+    "expected": {
+      "tasks": [
+        {
+          "title": "Water the plants",
+          "due_date": "2026-07-01",
+          "due_time": null,
+          "recurrence": "none",
+          "interval_minutes": null,
+          "notes": [],
+          "ambiguous_fields": ["due_time"]
+        }
+      ]
+    }
+  },
+  {
+    "name": "multi_task_utterance",
+    "transcript": "Remind me to pick up groceries today at 5pm, and also call mom every Sunday at noon, with a note to ask about her trip",
+    "current_datetime": "2026-06-30T10:00:00+00:00",
+    "expected": {
+      "tasks": [
+        {
+          "title": "Pick up groceries",
+          "due_date": "2026-06-30",
+          "due_time": "17:00",
+          "recurrence": "none",
+          "interval_minutes": null,
+          "notes": [],
+          "ambiguous_fields": []
+        },
+        {
+          "title": "Call mom",
+          "due_date": "2026-07-05",
+          "due_time": "12:00",
+          "recurrence": "weekly",
+          "interval_minutes": null,
+          "notes": [{"text": "Ask about her trip"}],
+          "ambiguous_fields": []
+        }
+      ]
+    }
+  }
+]

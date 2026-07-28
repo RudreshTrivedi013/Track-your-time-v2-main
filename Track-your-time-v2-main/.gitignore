@@ -1,0 +1,52 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+backend/.env
+frontend/.env.local
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+backend/venv/
+backend/.venv/
+
+# Node / frontend builds
+node_modules/
+frontend/node_modules/
+dist/
+frontend/dist/
+frontend/dist-ssr/
+frontend/tsconfig.tsbuildinfo
+
+# Celery beat local state
+celerybeat-schedule*
+backend/celerybeat-schedule*
+
+# Local/generated notes and snapshots
+tree.txt
+project_summary.md
+ts_errors.txt
+frontend/ts_errors.txt
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+.claude/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Local Redis snapshot — runtime artifact, not source.
+dump.rdb

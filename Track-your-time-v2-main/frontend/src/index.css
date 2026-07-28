@@ -1,0 +1,187 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /*
+   * Monochrome dark palette. Primary is WHITE — hue is reserved for meaning
+   * (success / warning / danger) and nothing else. See tailwind.config.ts.
+   */
+  :root {
+    --background: 240 20% 4%;          /* #0a0a0f */
+    --foreground: 210 40% 96%;         /* #f1f5f9 */
+
+    --card: 240 18% 7%;                /* #111118 */
+    --card-foreground: 210 40% 96%;
+
+    --popover: 240 16% 12%;            /* #1a1a24 */
+    --popover-foreground: 210 40% 96%;
+
+    --primary: 0 0% 100%;              /* white  */
+    --primary-foreground: 240 20% 4%;  /* near-black text on white */
+
+    --secondary: 240 16% 12%;
+    --secondary-foreground: 210 40% 96%;
+
+    --muted: 240 16% 12%;
+    --muted-foreground: 215 20% 65%;   /* #94a3b8 */
+
+    --destructive: 0 84% 60%;          /* #ef4444 */
+    --destructive-foreground: 210 40% 96%;
+
+    --input: 240 16% 20%;              /* #2a2a3a */
+    --ring: 0 0% 100%;
+
+    --radius: 0.75rem;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    color-scheme: dark;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: #0a0a0f;
+    color: #f1f5f9;
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    min-height: 100dvh;
+    /* Stop iOS rubber-banding from revealing white behind the app shell. */
+    overscroll-behavior-y: none;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #111118;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #2a2a3a;
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #3a3a4a;
+  }
+
+  ::selection {
+    background: rgba(255, 255, 255, 0.18);
+    color: #f1f5f9;
+  }
+
+  /* Users who ask for less motion get none of the decorative kind. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  /*
+   * Transitional aliases. New code should use the shadcn <Button>, <Input>
+   * and <Card> components in src/components/ui — these exist so the migration
+   * does not have to be one big find-and-replace, and they are deleted once
+   * the last consumer is converted.
+   *
+   * Note there is no glow, no gradient and no backdrop-blur any more: the blur
+   * cost real frames while scrolling on mid-range Android, and with a
+   * monochrome palette an indigo glow had nothing left to glow from.
+   */
+  .card,
+  .glass-card {
+    @apply bg-bg-surface border border-border rounded-2xl;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 bg-white text-bg font-medium
+           px-4 min-h-[44px] rounded-xl transition-colors hover:bg-white/90
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10
+           text-text-primary border border-border px-4 min-h-[44px] rounded-xl
+           transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 text-text-secondary
+           hover:text-text-primary hover:bg-white/5 px-4 min-h-[44px] rounded-xl
+           transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-danger {
+    @apply inline-flex items-center justify-center gap-2 bg-danger/10 hover:bg-danger/20
+           text-danger border border-danger/20 px-4 min-h-[44px] rounded-xl
+           transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  /* text-base (16px) is load-bearing: iOS Safari force-zooms the viewport when
+     a focused input's font-size is below 16px. */
+  .input-field {
+    @apply w-full bg-bg-elevated border border-border rounded-xl px-3.5 min-h-[44px]
+           text-base text-text-primary placeholder:text-text-muted
+           focus:outline-none focus:border-white/40 transition-colors;
+  }
+
+  .nav-item {
+    @apply flex items-center gap-3 px-3 min-h-[44px] rounded-xl text-text-secondary
+           hover:text-text-primary hover:bg-white/5 transition-colors cursor-pointer;
+  }
+
+  .nav-item-active {
+    @apply bg-white/10 text-text-primary;
+  }
+
+  .status-dot {
+    @apply inline-block w-2 h-2 rounded-full;
+  }
+}
+
+@layer utilities {
+  /* Real safe-area utilities. `pb-safe` was previously used in BottomNav but
+     never defined anywhere, so it silently did nothing and the bottom nav sat
+     under the iPhone home indicator. */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .pt-safe {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+  .px-safe {
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+  }
+}
+
+/*
+ * Bottom-sheet (vaul) close safety net.
+ *
+ * vaul keeps its overlay and content mounted while the close transition plays
+ * and only removes them when it ends. If that transition never completes, the
+ * overlay stays in the DOM as a full-screen z-50 element with
+ * `pointer-events: auto` — invisible, but swallowing every click on the page.
+ * The only recovery was reloading the tab, which is exactly the "I have to
+ * refresh before I can click anything" bug.
+ *
+ * This lives in plain CSS rather than a Tailwind `data-[state=closed]:` utility
+ * on purpose: the utility depends on JIT class scanning picking it up, and when
+ * that silently fails the app becomes unusable. A hand-written rule always
+ * ships.
+ */
+[data-vaul-overlay][data-state='closed'],
+[data-vaul-drawer][data-state='closed'] {
+  pointer-events: none !important;
+}
