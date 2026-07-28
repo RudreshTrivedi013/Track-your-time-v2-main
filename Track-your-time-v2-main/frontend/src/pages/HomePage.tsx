@@ -73,7 +73,7 @@ export default function HomePage() {
         <button
           type="button"
           onClick={() => setTimelineOpen((v) => !v)}
-          className="flex min-h-[44px] items-center gap-1.5 text-xs font-medium text-text-muted transition-colors hover:text-text-secondary"
+          className="flex w-full min-h-[44px] items-center gap-1.5 text-xs font-medium text-text-muted transition-colors hover:text-text-secondary"
         >
           <ChevronDown className={cn('size-3.5 transition-transform', timelineOpen && 'rotate-180')} />
           Today's activity

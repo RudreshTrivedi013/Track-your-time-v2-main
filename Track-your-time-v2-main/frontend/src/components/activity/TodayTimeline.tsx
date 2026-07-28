@@ -64,7 +64,17 @@ function TimelineRow({ activity, onEdit }: { activity: ReminderActivity; onEdit?
   const editable = activity.activity_type === 'hourly_checkin' && onEdit
 
   return (
-    <li className="flex items-start gap-3 border-t border-border/60 py-3 first:border-t-0">
+    <li 
+      className={cn(
+        "group flex items-start gap-3 border-t border-border/60 py-3 first:border-t-0",
+        editable && "cursor-pointer transition-colors hover:bg-white/[0.02]"
+      )}
+      onClick={() => {
+        if (editable && onEdit) {
+          onEdit(activity)
+        }
+      }}
+    >
       <span className={`mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg ${meta.tone}`}>
         <Icon size={14} />
       </span>
@@ -84,9 +94,8 @@ function TimelineRow({ activity, onEdit }: { activity: ReminderActivity; onEdit?
       {editable && (
         <button
           type="button"
-          onClick={() => onEdit(activity)}
           aria-label="Edit check-in"
-          className="shrink-0 rounded-lg p-1.5 text-text-muted transition-colors hover:bg-white/5 hover:text-text-primary"
+          className="shrink-0 rounded-lg p-1.5 text-text-muted transition-colors group-hover:bg-white/5 group-hover:text-text-primary"
         >
           <Pencil size={14} />
         </button>
