@@ -108,7 +108,7 @@ export function TaskCard({ task }: TaskCardProps) {
       {/* Icon-only, so the title gets the horizontal space instead of two
           words of button label. aria-label + title keep it accessible and
           discoverable on hover. */}
-      <div className="flex shrink-0 items-center gap-0.5">
+      <div className="ml-2 flex shrink-0 items-center gap-0.5">
         {isDone ? (
           <Button
             variant="secondary"
