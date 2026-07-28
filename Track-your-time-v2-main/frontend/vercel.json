@@ -1,7 +1,6 @@
 {
   "headers": [
     {
-      "//": "A CDN-cached service worker is the classic 'my PWA never updates' bug. Vercel serves real static files before applying rewrites, so these are not swallowed by the SPA rewrite below.",
       "source": "/sw.js",
       "headers": [
         { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" },
