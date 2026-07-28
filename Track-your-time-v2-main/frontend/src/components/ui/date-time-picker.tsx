@@ -16,29 +16,23 @@ import { cn, formatDueDate } from '@/lib/utils'
 
 /**
  * Replacement for `<input type="datetime-local">`, which renders as a
- * different (and mostly bad) control on every platform and is especially
- * awkward on mobile.
+ * different (and mostly bad) control on every platform.
  *
- * One-tap presets come first: most reminders are "later today" or "tomorrow
- * morning" and should never require opening a calendar at all. The calendar is
- * the fallback, not the main path.
+ * UX is a two-step inline flow (not a popover — see note below):
+ *   Step 1 "Date" — calendar is shown. Tapping a day automatically advances
+ *                   to Step 2.
+ *   Step 2 "Time" — time dropdown + "Done" button. User can tap the Date tab
+ *                   to go back and change the day.
  *
- * The calendar expands INLINE rather than in a popover or sheet. This
- * component lives inside TaskFormSheet, which is itself a vaul Drawer, and
- * both alternatives were actively broken there:
+ * WHY INLINE: This component lives inside TaskFormSheet (a vaul Drawer).
+ * Both Popover and a nested Drawer were tested and broke in different ways:
+ *   - Both render into a document.body portal, outside any hidden wrapper, so
+ *     two calendars appeared simultaneously.
+ *   - A nested vaul Drawer fights the parent for scroll-lock / drag-dismiss.
+ * Inline has no portal, no nesting, no z-index contest.
  *
- *  - Rendering a Drawer and a Popover and switching with `md:hidden` did not
- *    work at all, because each renders into a portal on document.body — well
- *    outside the hidden wrapper — so BOTH opened and two calendars stacked on
- *    screen at once.
- *  - A nested vaul Drawer additionally fights the parent over scroll locking,
- *    focus trapping and drag-to-dismiss.
- *
- * Inline has no portal, no nesting, no z-index contest, and behaves the same
- * on phone and desktop.
- *
- * Value is an ISO string (or null), matching what the API expects, so callers
- * never do their own Date <-> string juggling.
+ * Value is an ISO string (or null), matching the API — callers never juggle
+ * Date ↔ string themselves.
  */
 
 const TIME_STEP_MINUTES = 15
@@ -49,7 +43,6 @@ const QUICK_CHIPS: { label: string; build: () => Date }[] = [
   { label: 'This weekend', build: () => setMinutes(setHours(nextSaturday(startOfToday()), 10), 0) },
 ]
 
-/** ["00:00", "00:15", …] as {value,label} pairs. */
 function useTimeOptions() {
   return useMemo(() => {
     const base = startOfToday()
@@ -62,12 +55,14 @@ function useTimeOptions() {
   }, [])
 }
 
-/** Nearest upcoming slot, so the time list opens somewhere sensible. */
 function defaultTimeValue(): string {
   const now = new Date()
   const rounded = Math.ceil(now.getMinutes() / TIME_STEP_MINUTES) * TIME_STEP_MINUTES
-  return format(new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), 0)
-    .getTime() + rounded * 60_000, 'HH:mm')
+  return format(
+    new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), 0).getTime() +
+      rounded * 60_000,
+    'HH:mm',
+  )
 }
 
 function combine(day: Date, hhmm: string): Date {
@@ -75,8 +70,9 @@ function combine(day: Date, hhmm: string): Date {
   return setMinutes(setHours(startOfDay(day), h), m)
 }
 
+type Step = 'date' | 'time'
+
 interface DateTimePickerProps {
-  /** ISO string, or null for "no due date". */
   value: string | null
   onChange: (value: string | null) => void
   disabled?: boolean
@@ -90,14 +86,17 @@ export function DateTimePicker({
   placeholder = 'Add a due date',
 }: DateTimePickerProps) {
   const [expanded, setExpanded] = useState(false)
+  const [step, setStep] = useState<Step>('date')
+
   const selected = value ? new Date(value) : null
   const timeOptions = useTimeOptions()
 
   const [day, setDay] = useState<Date | undefined>(selected ?? undefined)
-  const [time, setTime] = useState<string>(selected ? format(selected, 'HH:mm') : defaultTimeValue())
+  const [time, setTime] = useState<string>(
+    selected ? format(selected, 'HH:mm') : defaultTimeValue(),
+  )
 
-  // Keep the draft in step when the value changes from outside — the quick
-  // chips, the clear button, or voice dictation filling the form.
+  // Keep draft in sync when value changes externally (quick chips, clear, voice).
   useEffect(() => {
     if (!value) {
       setDay(undefined)
@@ -108,10 +107,19 @@ export function DateTimePicker({
     setTime(format(next, 'HH:mm'))
   }, [value])
 
-  const isChipActive = (target: Date) => selected != null && selected.getTime() === target.getTime()
+  const handleOpen = () => {
+    setStep('date')
+    setExpanded(true)
+  }
+
+  const handleClose = () => setExpanded(false)
+
+  const isChipActive = (target: Date) =>
+    selected != null && selected.getTime() === target.getTime()
 
   return (
     <div className="space-y-2.5">
+      {/* ── Quick-pick chips ──────────────────────────────────── */}
       <div className="flex flex-wrap gap-2">
         {QUICK_CHIPS.map((chip) => {
           const target = chip.build()
@@ -139,11 +147,12 @@ export function DateTimePicker({
         })}
       </div>
 
+      {/* ── Trigger row ───────────────────────────────────────── */}
       <div className="flex items-center gap-2">
         <button
           type="button"
           disabled={disabled}
-          onClick={() => setExpanded((v) => !v)}
+          onClick={expanded ? handleClose : handleOpen}
           aria-expanded={expanded}
           className={cn(
             'flex min-h-[44px] flex-1 items-center gap-2 rounded-xl border border-border bg-bg-elevated px-3.5',
@@ -152,8 +161,15 @@ export function DateTimePicker({
           )}
         >
           <Clock className="size-4 shrink-0 text-text-muted" />
-          <span className="flex-1 truncate">{selected ? formatDueDate(value) : placeholder}</span>
-          <ChevronDown className={cn('size-4 shrink-0 text-text-muted transition-transform', expanded && 'rotate-180')} />
+          <span className="flex-1 truncate">
+            {selected ? formatDueDate(value) : placeholder}
+          </span>
+          <ChevronDown
+            className={cn(
+              'size-4 shrink-0 text-text-muted transition-transform duration-200',
+              expanded && 'rotate-180',
+            )}
+          />
         </button>
 
         {selected && (
@@ -173,49 +189,82 @@ export function DateTimePicker({
         )}
       </div>
 
+      {/* ── Two-step inline panel ─────────────────────────────── */}
       {expanded && (
-        <div className="space-y-4 rounded-xl border border-border bg-bg-elevated p-3">
-          <div className="flex justify-center">
-            <Calendar
-              mode="single"
-              selected={day}
-              onSelect={(next) => {
-                if (!next) return
-                setDay(next)
-                onChange(combine(next, time).toISOString())
-              }}
-              // A reminder in the past can never fire.
-              disabled={{ before: startOfToday() }}
-              defaultMonth={day ?? new Date()}
+        <div className="rounded-2xl border border-border bg-bg-elevated overflow-hidden">
+
+          {/* Tab bar */}
+          <div className="flex border-b border-border">
+            <StepTab
+              label="Date"
+              sub={day ? format(day, 'MMM d') : 'Pick a day'}
+              active={step === 'date'}
+              onClick={() => setStep('date')}
+            />
+            <StepTab
+              label="Time"
+              sub={day ? format(combine(day, time), 'h:mm a') : '—'}
+              active={step === 'time'}
+              disabled={!day}
+              onClick={() => { if (day) setStep('time') }}
             />
           </div>
 
-          <div className="space-y-1.5">
-            <span className="text-xs font-medium text-text-secondary">Time</span>
-            <Select
-              value={time}
-              onValueChange={(next) => {
-                setTime(next)
-                onChange(combine(day ?? startOfToday(), next).toISOString())
-                if (!day) setDay(startOfToday())
-              }}
-            >
-              <SelectTrigger aria-label="Time">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {timeOptions.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {/* Step 1 — Calendar */}
+          {step === 'date' && (
+            <div className="flex justify-center p-3">
+              <Calendar
+                mode="single"
+                selected={day}
+                onSelect={(next) => {
+                  if (!next) return
+                  setDay(next)
+                  onChange(combine(next, time).toISOString())
+                  // Auto-advance to time — same as every modern calendar app.
+                  setStep('time')
+                }}
+                disabled={{ before: startOfToday() }}
+                defaultMonth={day ?? new Date()}
+              />
+            </div>
+          )}
 
-          <Button type="button" variant="secondary" className="w-full" onClick={() => setExpanded(false)}>
-            Done
-          </Button>
+          {/* Step 2 — Time + Done */}
+          {step === 'time' && (
+            <div className="space-y-4 p-4">
+              <p className="text-sm font-medium text-text-secondary">
+                {day ? format(day, 'EEEE, MMMM d') : ''}
+              </p>
+
+              <Select
+                value={time}
+                onValueChange={(next) => {
+                  setTime(next)
+                  onChange(combine(day ?? startOfToday(), next).toISOString())
+                  if (!day) setDay(startOfToday())
+                }}
+              >
+                <SelectTrigger aria-label="Time" className="h-12 text-base">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {timeOptions.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Button
+                type="button"
+                className="w-full"
+                onClick={handleClose}
+              >
+                Done
+              </Button>
+            </div>
+          )}
         </div>
       )}
 
@@ -223,5 +272,39 @@ export function DateTimePicker({
         <p className="text-xs text-warning">That time has already passed.</p>
       )}
     </div>
+  )
+}
+
+// ── Internal tab component ──────────────────────────────────────────────────
+
+interface StepTabProps {
+  label: string
+  sub: string
+  active: boolean
+  disabled?: boolean
+  onClick: () => void
+}
+
+function StepTab({ label, sub, active, disabled, onClick }: StepTabProps) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={cn(
+        'flex flex-1 flex-col items-center gap-0.5 py-3 text-center transition-colors',
+        'border-b-2',
+        active
+          ? 'border-white text-white'
+          : disabled
+          ? 'border-transparent text-text-muted cursor-not-allowed'
+          : 'border-transparent text-text-secondary hover:text-text-primary',
+      )}
+    >
+      <span className="text-xs font-semibold uppercase tracking-wider">{label}</span>
+      <span className={cn('text-xs', active ? 'text-text-secondary' : 'text-text-muted')}>
+        {sub}
+      </span>
+    </button>
   )
 }
