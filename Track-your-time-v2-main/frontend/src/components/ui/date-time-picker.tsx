@@ -118,7 +118,7 @@ export function DateTimePicker({
     selected != null && selected.getTime() === target.getTime()
 
   return (
-    <div className="space-y-2.5">
+    <div className="space-y-2.5 relative">
       {/* ── Quick-pick chips ──────────────────────────────────── */}
       <div className="flex flex-wrap gap-2">
         {QUICK_CHIPS.map((chip) => {
@@ -189,9 +189,9 @@ export function DateTimePicker({
         )}
       </div>
 
-      {/* ── Two-step inline panel ─────────────────────────────── */}
+      {/* ── Two-step popup panel ─────────────────────────────── */}
       {expanded && (
-        <div className="rounded-2xl border border-border bg-bg-elevated overflow-hidden">
+        <div className="absolute top-full left-0 right-0 z-50 mt-2 rounded-2xl border border-border bg-bg-elevated overflow-hidden shadow-2xl">
 
           {/* Tab bar */}
           <div className="flex border-b border-border">
