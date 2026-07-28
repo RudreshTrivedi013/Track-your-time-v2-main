@@ -10,6 +10,7 @@ import {
 } from 'date-fns'
 import { Calendar } from './calendar'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './select'
+import { Popover, PopoverContent, PopoverTrigger } from './popover'
 import { Button } from './button'
 import { ChevronDown, Clock, X } from '@/lib/icons'
 import { cn, formatDueDate } from '@/lib/utils'
@@ -118,7 +119,7 @@ export function DateTimePicker({
     selected != null && selected.getTime() === target.getTime()
 
   return (
-    <div className="space-y-2.5 relative">
+    <div className="space-y-2.5">
       {/* ── Quick-pick chips ──────────────────────────────────── */}
       <div className="flex flex-wrap gap-2">
         {QUICK_CHIPS.map((chip) => {
@@ -147,52 +148,55 @@ export function DateTimePicker({
         })}
       </div>
 
-      {/* ── Trigger row ───────────────────────────────────────── */}
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          disabled={disabled}
-          onClick={expanded ? handleClose : handleOpen}
-          aria-expanded={expanded}
-          className={cn(
-            'flex min-h-[44px] flex-1 items-center gap-2 rounded-xl border border-border bg-bg-elevated px-3.5',
-            'text-left text-base transition-colors hover:border-white/30 disabled:opacity-50',
-            selected ? 'text-foreground' : 'text-text-muted',
-          )}
-        >
-          <Clock className="size-4 shrink-0 text-text-muted" />
-          <span className="flex-1 truncate">
-            {selected ? formatDueDate(value) : placeholder}
-          </span>
-          <ChevronDown
-            className={cn(
-              'size-4 shrink-0 text-text-muted transition-transform duration-200',
-              expanded && 'rotate-180',
+      {/* ── Popover Trigger & Content ─────────────────────────────── */}
+      <Popover open={expanded} onOpenChange={setExpanded}>
+        <PopoverTrigger asChild>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={expanded ? handleClose : handleOpen}
+              aria-expanded={expanded}
+              className={cn(
+                'flex min-h-[44px] flex-1 items-center gap-2 rounded-xl border border-border bg-bg-elevated px-3.5',
+                'text-left text-base transition-colors hover:border-white/30 disabled:opacity-50',
+                selected ? 'text-foreground' : 'text-text-muted',
+              )}
+            >
+              <Clock className="size-4 shrink-0 text-text-muted" />
+              <span className="flex-1 truncate">
+                {selected ? formatDueDate(value) : placeholder}
+              </span>
+              <ChevronDown
+                className={cn(
+                  'size-4 shrink-0 text-text-muted transition-transform duration-200',
+                  expanded && 'rotate-180',
+                )}
+              />
+            </button>
+
+            {selected && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label="Clear due date"
+                disabled={disabled}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onChange(null)
+                  setExpanded(false)
+                }}
+              >
+                <X className="size-4" />
+              </Button>
             )}
-          />
-        </button>
-
-        {selected && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            aria-label="Clear due date"
-            disabled={disabled}
-            onClick={() => {
-              onChange(null)
-              setExpanded(false)
-            }}
-          >
-            <X className="size-4" />
-          </Button>
-        )}
-      </div>
-
-      {/* ── Two-step popup panel ─────────────────────────────── */}
-      {expanded && (
-        <div className="absolute top-full left-0 right-0 z-50 mt-2 rounded-2xl border border-border bg-bg-elevated overflow-hidden shadow-2xl">
-
+          </div>
+        </PopoverTrigger>
+        <PopoverContent
+          sideOffset={8}
+          className="w-[calc(100vw-32px)] sm:w-[340px] p-0 rounded-2xl border border-border bg-bg-elevated overflow-hidden shadow-2xl"
+        >
           {/* Tab bar */}
           <div className="flex border-b border-border">
             <StepTab
@@ -232,7 +236,7 @@ export function DateTimePicker({
           {/* Step 2 — Time + Done */}
           {step === 'time' && (
             <div className="space-y-4 p-4">
-              <p className="text-sm font-medium text-text-secondary">
+              <p className="text-sm font-medium text-text-secondary text-center">
                 {day ? format(day, 'EEEE, MMMM d') : ''}
               </p>
 
@@ -258,15 +262,15 @@ export function DateTimePicker({
 
               <Button
                 type="button"
-                className="w-full"
+                className="w-full h-12 text-base"
                 onClick={handleClose}
               >
                 Done
               </Button>
             </div>
           )}
-        </div>
-      )}
+        </PopoverContent>
+      </Popover>
 
       {selected && selected.getTime() < Date.now() && (
         <p className="text-xs text-warning">That time has already passed.</p>
