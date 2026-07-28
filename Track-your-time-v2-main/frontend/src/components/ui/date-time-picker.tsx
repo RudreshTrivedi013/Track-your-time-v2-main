@@ -10,7 +10,6 @@ import {
 } from 'date-fns'
 import { Calendar } from './calendar'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './select'
-import { Popover, PopoverContent, PopoverTrigger } from './popover'
 import { Button } from './button'
 import { ChevronDown, Clock, X } from '@/lib/icons'
 import { cn, formatDueDate } from '@/lib/utils'
@@ -19,21 +18,23 @@ import { cn, formatDueDate } from '@/lib/utils'
  * Replacement for `<input type="datetime-local">`, which renders as a
  * different (and mostly bad) control on every platform.
  *
- * UX is a two-step inline flow (not a popover — see note below):
- *   Step 1 "Date" — calendar is shown. Tapping a day automatically advances
- *                   to Step 2.
- *   Step 2 "Time" — time dropdown + "Done" button. User can tap the Date tab
- *                   to go back and change the day.
+ * UX is a two-step INLINE flow:
+ *   Step 1 "Date"  — tap the trigger → calendar appears.
+ *                    Tapping a day auto-advances to Step 2.
+ *   Step 2 "Time"  — time dropdown + "Done" button.
+ *                    The Date tab lets the user go back to change the day.
  *
- * WHY INLINE: This component lives inside TaskFormSheet (a vaul Drawer).
- * Both Popover and a nested Drawer were tested and broke in different ways:
- *   - Both render into a document.body portal, outside any hidden wrapper, so
- *     two calendars appeared simultaneously.
+ * WHY INLINE (not Popover or nested Drawer):
+ *   - Radix Popover renders into a document.body portal. Inside a vaul
+ *     Drawer (which is based on Radix Dialog), the dialog's focus/pointer
+ *     management disables clicks on any portal element that is NOT
+ *     directly inside the dialog DOM tree, making the calendar
+ *     non-interactive.
  *   - A nested vaul Drawer fights the parent for scroll-lock / drag-dismiss.
- * Inline has no portal, no nesting, no z-index contest.
+ *   Inline has no portal, no nesting, no z-index contest, and behaves the
+ *   same on phone and desktop.
  *
- * Value is an ISO string (or null), matching the API — callers never juggle
- * Date ↔ string themselves.
+ * Value is an ISO string (or null), matching the API.
  */
 
 const TIME_STEP_MINUTES = 15
@@ -97,7 +98,7 @@ export function DateTimePicker({
     selected ? format(selected, 'HH:mm') : defaultTimeValue(),
   )
 
-  // Keep draft in sync when value changes externally (quick chips, clear, voice).
+  // Sync draft when value changes externally (quick chips, clear, voice).
   useEffect(() => {
     if (!value) {
       setDay(undefined)
@@ -120,7 +121,7 @@ export function DateTimePicker({
 
   return (
     <div className="space-y-2.5">
-      {/* ── Quick-pick chips ──────────────────────────────────── */}
+      {/* ── Quick-pick chips ─────────────────────────────── */}
       <div className="flex flex-wrap gap-2">
         {QUICK_CHIPS.map((chip) => {
           const target = chip.build()
@@ -148,56 +149,54 @@ export function DateTimePicker({
         })}
       </div>
 
-      {/* ── Popover Trigger & Content ─────────────────────────────── */}
-      <Popover open={expanded} onOpenChange={setExpanded}>
-        <PopoverTrigger asChild>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              disabled={disabled}
-              onClick={expanded ? handleClose : handleOpen}
-              aria-expanded={expanded}
-              className={cn(
-                'flex min-h-[44px] flex-1 items-center gap-2 rounded-xl border border-border bg-bg-elevated px-3.5',
-                'text-left text-base transition-colors hover:border-white/30 disabled:opacity-50',
-                selected ? 'text-foreground' : 'text-text-muted',
-              )}
-            >
-              <Clock className="size-4 shrink-0 text-text-muted" />
-              <span className="flex-1 truncate">
-                {selected ? formatDueDate(value) : placeholder}
-              </span>
-              <ChevronDown
-                className={cn(
-                  'size-4 shrink-0 text-text-muted transition-transform duration-200',
-                  expanded && 'rotate-180',
-                )}
-              />
-            </button>
-
-            {selected && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label="Clear due date"
-                disabled={disabled}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onChange(null)
-                  setExpanded(false)
-                }}
-              >
-                <X className="size-4" />
-              </Button>
-            )}
-          </div>
-        </PopoverTrigger>
-        <PopoverContent
-          sideOffset={8}
-          className="w-[calc(100vw-32px)] sm:w-[340px] p-0 rounded-2xl border border-border bg-bg-elevated overflow-hidden shadow-2xl"
+      {/* ── Trigger row ───────────────────────────────────── */}
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={expanded ? handleClose : handleOpen}
+          aria-expanded={expanded}
+          className={cn(
+            'flex min-h-[44px] flex-1 items-center gap-2 rounded-xl border border-border bg-bg-elevated px-3.5',
+            'text-left text-base transition-colors hover:border-white/30 disabled:opacity-50',
+            expanded ? 'border-white/30' : '',
+            selected ? 'text-foreground' : 'text-text-muted',
+          )}
         >
-          {/* Tab bar */}
+          <Clock className="size-4 shrink-0 text-text-muted" />
+          <span className="flex-1 truncate">
+            {selected ? formatDueDate(value) : placeholder}
+          </span>
+          <ChevronDown
+            className={cn(
+              'size-4 shrink-0 text-text-muted transition-transform duration-200',
+              expanded && 'rotate-180',
+            )}
+          />
+        </button>
+
+        {selected && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label="Clear due date"
+            disabled={disabled}
+            onClick={() => {
+              onChange(null)
+              setExpanded(false)
+            }}
+          >
+            <X className="size-4" />
+          </Button>
+        )}
+      </div>
+
+      {/* ── Two-step inline panel ─────────────────────────── */}
+      {expanded && (
+        <div className="rounded-2xl border border-border bg-bg-elevated overflow-hidden">
+
+          {/* Tab bar — Date | Time */}
           <div className="flex border-b border-border">
             <StepTab
               label="Date"
@@ -224,7 +223,7 @@ export function DateTimePicker({
                   if (!next) return
                   setDay(next)
                   onChange(combine(next, time).toISOString())
-                  // Auto-advance to time — same as every modern calendar app.
+                  // Auto-advance — same as iOS/Google Calendar.
                   setStep('time')
                 }}
                 disabled={{ before: startOfToday() }}
@@ -236,7 +235,7 @@ export function DateTimePicker({
           {/* Step 2 — Time + Done */}
           {step === 'time' && (
             <div className="space-y-4 p-4">
-              <p className="text-sm font-medium text-text-secondary text-center">
+              <p className="text-center text-sm font-medium text-text-secondary">
                 {day ? format(day, 'EEEE, MMMM d') : ''}
               </p>
 
@@ -262,15 +261,15 @@ export function DateTimePicker({
 
               <Button
                 type="button"
-                className="w-full h-12 text-base"
+                className="w-full h-12 text-base font-semibold"
                 onClick={handleClose}
               >
                 Done
               </Button>
             </div>
           )}
-        </PopoverContent>
-      </Popover>
+        </div>
+      )}
 
       {selected && selected.getTime() < Date.now() && (
         <p className="text-xs text-warning">That time has already passed.</p>
@@ -279,7 +278,7 @@ export function DateTimePicker({
   )
 }
 
-// ── Internal tab component ──────────────────────────────────────────────────
+// ── Step tab ──────────────────────────────────────────────────────────────────
 
 interface StepTabProps {
   label: string
@@ -296,8 +295,7 @@ function StepTab({ label, sub, active, disabled, onClick }: StepTabProps) {
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        'flex flex-1 flex-col items-center gap-0.5 py-3 text-center transition-colors',
-        'border-b-2',
+        'flex flex-1 flex-col items-center gap-0.5 py-3 text-center transition-colors border-b-2',
         active
           ? 'border-white text-white'
           : disabled
