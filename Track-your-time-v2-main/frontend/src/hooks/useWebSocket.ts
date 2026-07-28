@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { refreshAccessToken } from '@/api/axios'
-import { useAuthStore } from '@/stores/authStore'
+import { useAuthStore, isTokenNearExpiry } from '@/stores/authStore'
 import { useWsStore } from '@/stores/wsStore'
 import { useSummaryStore } from '@/stores/summaryStore'
 import { TASKS_KEY } from './useTasks'
@@ -13,26 +13,6 @@ const API_URL = import.meta.env.VITE_API_URL as string ?? 'http://localhost:8000
 const WS_URL = API_URL.replace(/^http/, 'ws')
 
 const INVALIDATING_EVENTS = new Set(['task_created', 'task_updated', 'task_deleted', 'task_action'])
-
-/**
- * Decode a JWT payload without verifying the signature (client-side only).
- * Returns the exp claim in seconds, or 0 on failure.
- */
-function getTokenExpiry(token: string): number {
-  try {
-    const payload = JSON.parse(atob(token.split('.')[1]))
-    return typeof payload.exp === 'number' ? payload.exp : 0
-  } catch {
-    return 0
-  }
-}
-
-/** Returns true if the token expires within the next `bufferSeconds` seconds. */
-function isTokenNearExpiry(token: string, bufferSeconds = 60): boolean {
-  const exp = getTokenExpiry(token)
-  if (!exp) return true
-  return exp - Date.now() / 1000 < bufferSeconds
-}
 
 export function useWebSocket() {
   const { accessToken, isAuthenticated } = useAuthStore()
@@ -48,11 +28,16 @@ export function useWebSocket() {
   // opening a new socket so we open exactly once with the freshest token.
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const connectWithToken = useCallback((token: string) => {
+  const connectWithToken = useCallback(() => {
     // Clear any pending reconnect timer so we don't double-connect.
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current)
       timeoutRef.current = null
+    }
+
+    const token = useAuthStore.getState().accessToken
+    if (!token || !useAuthStore.getState().isAuthenticated) {
+      return
     }
 
     setStatus('connecting')
@@ -122,9 +107,8 @@ export function useWebSocket() {
         if (socketRef.current !== ws) return
 
         timeoutRef.current = setTimeout(() => {
-          const freshToken = useAuthStore.getState().accessToken
-          if (freshToken && useAuthStore.getState().isAuthenticated) {
-            connectWithToken(freshToken)
+          if (useAuthStore.getState().isAuthenticated) {
+            connectWithToken()
           }
         }, delay)
       }
@@ -190,9 +174,8 @@ export function useWebSocket() {
       }
 
       // Re-read from the store — the interceptor may have updated the token.
-      const freshToken = useAuthStore.getState().accessToken
-      if (freshToken && useAuthStore.getState().isAuthenticated) {
-        connectWithToken(freshToken)
+      if (useAuthStore.getState().isAuthenticated) {
+        connectWithToken()
       }
     }, 150)
 

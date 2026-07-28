@@ -1,19 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react'
-import { useAuthStore } from '@/stores/authStore'
+import { useAuthStore, getTokenExpiry } from '@/stores/authStore'
 import { refreshAccessToken } from '@/api/axios'
-
-/**
- * Decode a JWT payload (without verifying the signature) to read the `exp` claim.
- * Returns the expiry time in seconds since epoch, or 0 on failure.
- */
-function getTokenExpiry(token: string): number {
-  try {
-    const payload = JSON.parse(atob(token.split('.')[1]))
-    return typeof payload.exp === 'number' ? payload.exp : 0
-  } catch {
-    return 0
-  }
-}
 
 /**
  * How many seconds before token expiry should we proactively refresh.
@@ -57,6 +44,18 @@ export function useTokenRefresh() {
       console.debug(
         `[TokenRefresh] Scheduled proactive refresh in ${Math.round(delayMs / 1000)}s (token expires at ${new Date(exp * 1000).toLocaleTimeString()})`,
       )
+
+      if (delayMs === 0) {
+        refreshAccessToken()
+          .then(() => {
+            const freshToken = useAuthStore.getState().accessToken
+            if (freshToken) scheduleRefresh(freshToken)
+          })
+          .catch(() => {
+            console.warn('[TokenRefresh] Proactive refresh on mount failed')
+          })
+        return
+      }
 
       timerRef.current = setTimeout(async () => {
         // Re-check auth state — user may have logged out while timer was pending.

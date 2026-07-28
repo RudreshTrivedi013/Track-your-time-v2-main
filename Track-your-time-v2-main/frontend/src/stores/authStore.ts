@@ -10,6 +10,26 @@
 import { create } from 'zustand'
 import type { User } from '@/types/api'
 
+/**
+ * Decode a JWT payload without verifying the signature (client-side only).
+ * Returns the exp claim in seconds, or 0 on failure.
+ */
+export function getTokenExpiry(token: string): number {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]))
+    return typeof payload.exp === 'number' ? payload.exp : 0
+  } catch {
+    return 0
+  }
+}
+
+/** Returns true if the token expires within the next `bufferSeconds` seconds. */
+export function isTokenNearExpiry(token: string, bufferSeconds = 60): boolean {
+  const exp = getTokenExpiry(token)
+  if (!exp) return true
+  return exp - Date.now() / 1000 < bufferSeconds
+}
+
 const IDB_NAME = 'smartreminder-db'
 const IDB_STORE = 'auth'
 // v2, not v1. An older public/sw.js opened this database at version 1 without

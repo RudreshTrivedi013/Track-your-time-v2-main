@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { hardLogout, idbGetToken, useAuthStore } from '@/stores/authStore'
+import { hardLogout, idbGetToken, useAuthStore, isTokenNearExpiry } from '@/stores/authStore'
 
 const envApiUrl = import.meta.env.VITE_API_URL as string | undefined
 
@@ -82,13 +82,21 @@ authChannel?.addEventListener('message', (event: MessageEvent) => {
 export async function refreshAccessToken(): Promise<string> {
   if (refreshPromise) return refreshPromise
 
+  // FIRST check: did this tab (or another) just refresh the token successfully?
+  // By checking the in-memory state FIRST we bypass the slow IDB entirely
+  // and prevent the catastrophic bug where a stale IDB read overwrites a fresh memory state.
+  const currentToken = useAuthStore.getState().accessToken
+  if (currentToken && !isTokenNearExpiry(currentToken)) {
+    return currentToken
+  }
+
   const run = async (): Promise<string> => {
     // Another tab may have rotated while we waited for the lock. Adopt its
     // token rather than replaying ours (which is now blocklisted).
     const stampedAt = Number(localStorage.getItem(REFRESH_STAMP) ?? 0)
     if (Date.now() - stampedAt < ADOPT_WINDOW_MS) {
       const adopted = await idbGetToken()
-      if (adopted) {
+      if (adopted && !isTokenNearExpiry(adopted)) {
         useAuthStore.getState().setAccessToken(adopted)
         console.debug('[Auth] Adopted a token refreshed by another tab')
         return adopted
@@ -100,17 +108,27 @@ export async function refreshAccessToken(): Promise<string> {
     const refreshToken = localStorage.getItem('refresh_token')
     if (!refreshToken) throw new Error('No refresh token available')
 
-    const { data } = await axios.post(`${API_URL}/auth/refresh`, { refresh_token: refreshToken })
-    const newAccessToken: string = data.access_token
-    const newRefreshToken: string | undefined = data.refresh_token
+    try {
+      const { data } = await axios.post(`${API_URL}/auth/refresh`, { refresh_token: refreshToken })
+      const newAccessToken: string = data.access_token
+      const newRefreshToken: string | undefined = data.refresh_token
 
-    if (newRefreshToken) localStorage.setItem('refresh_token', newRefreshToken)
-    localStorage.setItem(REFRESH_STAMP, String(Date.now()))
-    useAuthStore.getState().setAccessToken(newAccessToken)
-    authChannel?.postMessage({ type: 'token', accessToken: newAccessToken })
+      if (newRefreshToken) localStorage.setItem('refresh_token', newRefreshToken)
+      localStorage.setItem(REFRESH_STAMP, String(Date.now()))
+      useAuthStore.getState().setAccessToken(newAccessToken)
+      authChannel?.postMessage({ type: 'token', accessToken: newAccessToken })
 
-    console.debug('[Auth] Token refreshed')
-    return newAccessToken
+      console.debug('[Auth] Token refreshed')
+      return newAccessToken
+    } catch (err: any) {
+      if (err.response?.status === 401) {
+        // If the refresh token ITSELF is expired/invalid, log out immediately.
+        // Doing this here rather than only in the response interceptor guarantees
+        // we don't get stuck in a WebSocket reconnect loop if it initiated the refresh.
+        await hardLogout()
+      }
+      throw err
+    }
   }
 
   refreshPromise = (
