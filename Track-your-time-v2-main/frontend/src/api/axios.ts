@@ -142,7 +142,11 @@ api.interceptors.response.use(
     }
 
     if (!localStorage.getItem('refresh_token')) {
-      await hardLogout()
+      // No refresh token available. Do NOT call hardLogout() — the token may
+      // be transiently missing (OS cleared storage, private browsing eviction,
+      // race with another tab). Destroying IDB and store state here was a
+      // one-way door that turned a recoverable situation into a permanent
+      // logout. Just reject and let the caller handle it.
       return Promise.reject(error)
     }
 
@@ -155,13 +159,13 @@ api.interceptors.response.use(
       originalRequest.headers.Authorization = `Bearer ${newAccessToken}`
       return api(originalRequest)
     } catch (refreshError) {
-      // CRITICAL: Only destroy the session on a definitive auth rejection (401/403).
+      // CRITICAL: Only destroy the session on a definitive auth rejection.
       // A network error (no response) means the backend is cold-starting or the
       // user is briefly offline — the refresh token is still perfectly valid.
-      // Calling hardLogout() here used to wipe the refresh token on every cold
-      // start, permanently logging out users who had done nothing wrong.
+      // 403 is NOT included — it can come from CORS blocks or WAF rules, not
+      // just invalid credentials.
       const status = (refreshError as { response?: { status?: number } })?.response?.status
-      if (status === 401 || status === 403) {
+      if (status === 401) {
         await hardLogout()
       }
       return Promise.reject(refreshError)

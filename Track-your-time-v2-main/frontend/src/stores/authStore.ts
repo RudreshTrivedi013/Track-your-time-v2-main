@@ -165,10 +165,15 @@ export const useAuthStore = create<AuthState>((set) => ({
 
 /** True only for genuine credential rejections. A network failure, a CORS
  *  block, a cold-starting backend or a 500 must NOT be treated as "logged out"
- *  — doing so used to wipe a perfectly good refresh token on one flaky request. */
+ *  — doing so used to wipe a perfectly good refresh token on one flaky request.
+ *
+ *  ONLY 401 counts. 403 can come from CORS blocks, WAF rules, permission
+ *  checks, or WebSocket policy violations — none of which mean "your refresh
+ *  token is invalid". Treating 403 as a logout trigger was destroying valid
+ *  sessions on transient infrastructure hiccups. */
 export function isAuthError(err: unknown): boolean {
   const status = (err as { response?: { status?: number } })?.response?.status
-  return status === 401 || status === 403
+  return status === 401
 }
 
 /**

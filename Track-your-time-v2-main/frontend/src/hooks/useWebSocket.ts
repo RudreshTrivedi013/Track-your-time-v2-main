@@ -108,28 +108,39 @@ export function useWebSocket() {
       const delay = reconnectDelay.current
       reconnectDelay.current = Math.min(delay * 2, 30_000)
 
-      // Refresh directly instead of firing GET /auth/me purely to provoke the
-      // axios 401 -> refresh interceptor. That indirection cost three HTTP
-      // requests (401, refresh, retry) to accomplish what refreshAccessToken()
-      // does in one, and on a flapping connection it fired on every close.
-      refreshAccessToken()
-        .catch(() => {
-          // Refresh failed (e.g. refresh token expired). hardLogout inside the
-          // axios module handles the redirect; just stop trying to reconnect.
-        })
-        .finally(() => {
-          // Bail if the hook unmounted while the refresh was in flight —
-          // otherwise this schedules a timer the cleanup already ran past,
-          // which would open a socket nobody owns.
-          if (socketRef.current !== ws) return
+      // Only refresh the token if it is near expiry. Calling
+      // refreshAccessToken() on every WS close was burning through token
+      // rotations unnecessarily, and if the refresh failed on a backend cold
+      // start the error handler in axios could trigger a premature logout.
+      const currentToken = useAuthStore.getState().accessToken
+      const needsRefresh = currentToken ? isTokenNearExpiry(currentToken) : true
 
-          timeoutRef.current = setTimeout(() => {
-            const freshToken = useAuthStore.getState().accessToken
-            if (freshToken && useAuthStore.getState().isAuthenticated) {
-              connectWithToken(freshToken)
-            }
-          }, delay)
-        })
+      const doReconnect = () => {
+        // Bail if the hook unmounted while the refresh was in flight —
+        // otherwise this schedules a timer the cleanup already ran past,
+        // which would open a socket nobody owns.
+        if (socketRef.current !== ws) return
+
+        timeoutRef.current = setTimeout(() => {
+          const freshToken = useAuthStore.getState().accessToken
+          if (freshToken && useAuthStore.getState().isAuthenticated) {
+            connectWithToken(freshToken)
+          }
+        }, delay)
+      }
+
+      if (needsRefresh) {
+        refreshAccessToken()
+          .catch(() => {
+            // Refresh failed — log but do NOT propagate. The axios interceptor
+            // only calls hardLogout on a definitive 401 from the refresh
+            // endpoint. Any other failure (network, timeout) is transient and
+            // the reconnect timer will try again with the existing token.
+          })
+          .finally(doReconnect)
+      } else {
+        doReconnect()
+      }
     }
 
     ws.onerror = () => {
