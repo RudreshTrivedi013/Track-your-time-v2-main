@@ -6,7 +6,7 @@ import { ACTIVITIES_KEY } from '@/hooks/useActivities'
 import type { ProductivityStatus } from '@/types/companion'
 import type { ReminderActivity } from '@/types/api'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { VoiceNoteInput } from '@/components/ui/VoiceNoteInput'
 import {
   Drawer,
   DrawerContent,
@@ -101,9 +101,9 @@ export function EditCheckinSheet({ activity, onClose }: EditCheckinSheetProps) {
             })}
           </div>
 
-          <Input
+          <VoiceNoteInput
             value={note}
-            onChange={(e) => setNote(e.target.value)}
+            onChange={setNote}
             placeholder="Add a note (optional)"
             disabled={submitting}
             onKeyDown={(e) => {
