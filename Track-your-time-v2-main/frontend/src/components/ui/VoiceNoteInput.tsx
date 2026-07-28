@@ -1,7 +1,8 @@
-import { useState, useRef, useCallback } from 'react'
+import { useEffect, useRef } from 'react'
 import { Mic } from '@/lib/icons'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
+import { useVoiceInput } from '@/hooks/useVoiceInput'
 
 interface VoiceNoteInputProps {
   value: string
@@ -12,15 +13,17 @@ interface VoiceNoteInputProps {
 }
 
 /**
- * Input with an inline mic button that uses the browser's Web Speech API
- * (SpeechRecognition) to transcribe voice into the note field.
+ * Input with an inline mic button that uses the existing `useVoiceInput` hook
+ * (Web Speech API). All SpeechRecognition types are properly defined in the
+ * hook — no any-casts needed here.
  *
- * - Falls back gracefully: if the browser doesn't support SpeechRecognition
- *   (e.g. Firefox without the flag), the mic button is simply not rendered.
- * - Transcription is APPENDED to any existing text so the user can mix
- *   typing and speaking freely.
- * - Uses `interimResults: false` so only the final, committed transcript is
- *   inserted — no flickering mid-word text.
+ * - While recording: shows interim (in-progress) text as a live preview inside
+ *   the input; input becomes read-only so typing doesn't conflict.
+ * - When recording stops: the confirmed transcript is appended to the note
+ *   value and the hook is reset for the next session.
+ * - On unsupported browsers (Firefox): mic button is simply not rendered.
+ * - Mic access errors ("Blocked", "No speech") surface as a small error line
+ *   below the input instead of failing silently.
  */
 export function VoiceNoteInput({
   value,
@@ -29,69 +32,84 @@ export function VoiceNoteInput({
   disabled,
   onKeyDown,
 }: VoiceNoteInputProps) {
-  const [listening, setListening] = useState(false)
-  const recognitionRef = useRef<any>(null)
+  const {
+    isSupported,
+    isRecording,
+    transcript,
+    interimTranscript,
+    error,
+    startRecording,
+    stopRecording,
+    resetTranscript,
+  } = useVoiceInput()
 
-  const SpeechRecognitionAPI =
-    typeof window !== 'undefined'
-      ? (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition
-      : undefined
+  // Keep a ref so the effect always reads the latest `value` without
+  // needing it as a dependency (avoids stale-closure append bugs).
+  const valueRef = useRef(value)
+  useEffect(() => {
+    valueRef.current = value
+  }, [value])
 
-  const supported = !!SpeechRecognitionAPI
-
-  const toggleListening = useCallback(() => {
-    if (!SpeechRecognitionAPI) return
-
-    if (listening) {
-      recognitionRef.current?.stop()
-      return
+  // Append the final transcript to the note when recording stops.
+  const wasRecording = useRef(false)
+  useEffect(() => {
+    if (wasRecording.current && !isRecording && transcript) {
+      const base = valueRef.current
+      onChange(base ? `${base} ${transcript}` : transcript)
+      resetTranscript()
     }
+    wasRecording.current = isRecording
+  }, [isRecording, transcript, onChange, resetTranscript])
 
-    const recognition = new SpeechRecognitionAPI()
-    recognition.continuous = false
-    recognition.interimResults = false
-    recognition.lang = 'en-US'
+  const toggle = () => (isRecording ? stopRecording() : startRecording())
 
-    recognition.onstart = () => setListening(true)
-    recognition.onend = () => setListening(false)
-    recognition.onerror = () => setListening(false)
-
-    recognition.onresult = (event: any) => {
-      const transcript = event.results[0][0].transcript.trim()
-      // Append with a space if there's already text
-      onChange(value ? `${value} ${transcript}` : transcript)
-    }
-
-    recognitionRef.current = recognition
-    recognition.start()
-  }, [listening, value, onChange, SpeechRecognitionAPI])
+  // Show the live interim text inside the field while recording so the user
+  // can see recognition in progress.
+  const displayValue =
+    isRecording && interimTranscript
+      ? value
+        ? `${value} ${interimTranscript}`
+        : interimTranscript
+      : value
 
   return (
-    <div className="relative flex items-center">
-      <Input
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        disabled={disabled}
-        onKeyDown={onKeyDown}
-        // Make room for the mic button so text doesn't overlap it
-        className={cn(supported && 'pr-10')}
-      />
-      {supported && (
-        <button
-          type="button"
-          onClick={toggleListening}
+    <div className="space-y-1">
+      <div className="relative flex items-center">
+        <Input
+          value={displayValue}
+          onChange={(e) => {
+            // Block typed edits while recording to avoid conflicts.
+            if (!isRecording) onChange(e.target.value)
+          }}
+          placeholder={isRecording ? 'Listening…' : placeholder}
           disabled={disabled}
-          aria-label={listening ? 'Stop recording' : 'Dictate note'}
+          onKeyDown={onKeyDown}
+          // Suppress the cursor while recording so it's clear the field is driven by voice.
+          readOnly={isRecording}
           className={cn(
-            'absolute right-3 rounded-md p-0.5 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50',
-            listening
-              ? 'text-red-400 animate-pulse'
-              : 'text-text-secondary hover:text-text-primary',
+            isSupported && 'pr-10',
+            isRecording && 'border-red-400/50 focus-visible:ring-red-400/30',
           )}
-        >
-          <Mic className="size-4" />
-        </button>
+        />
+        {isSupported && (
+          <button
+            type="button"
+            onClick={toggle}
+            disabled={disabled}
+            aria-label={isRecording ? 'Stop recording' : 'Dictate note'}
+            className={cn(
+              'absolute right-3 rounded-md p-0.5 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50',
+              isRecording
+                ? 'text-red-400 animate-pulse'
+                : 'text-text-secondary hover:text-text-primary',
+            )}
+          >
+            <Mic className="size-4" />
+          </button>
+        )}
+      </div>
+      {error && (
+        <p className="px-1 text-xs text-red-400">{error}</p>
       )}
     </div>
   )
