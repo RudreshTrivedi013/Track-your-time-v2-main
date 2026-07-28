@@ -62,7 +62,7 @@ api.interceptors.request.use((config) => {
 // its result instead of burning our own rotation.
 const REFRESH_LOCK = 'smartreminder-refresh'
 const REFRESH_STAMP = 'refresh_token_at'
-const ADOPT_WINDOW_MS = 15_000
+const ADOPT_WINDOW_MS = 60_000 // 60 s — wide enough for slow connections to avoid a race
 
 let refreshPromise: Promise<string> | null = null
 
@@ -155,7 +155,15 @@ api.interceptors.response.use(
       originalRequest.headers.Authorization = `Bearer ${newAccessToken}`
       return api(originalRequest)
     } catch (refreshError) {
-      await hardLogout()
+      // CRITICAL: Only destroy the session on a definitive auth rejection (401/403).
+      // A network error (no response) means the backend is cold-starting or the
+      // user is briefly offline — the refresh token is still perfectly valid.
+      // Calling hardLogout() here used to wipe the refresh token on every cold
+      // start, permanently logging out users who had done nothing wrong.
+      const status = (refreshError as { response?: { status?: number } })?.response?.status
+      if (status === 401 || status === 403) {
+        await hardLogout()
+      }
       return Promise.reject(refreshError)
     }
   },
