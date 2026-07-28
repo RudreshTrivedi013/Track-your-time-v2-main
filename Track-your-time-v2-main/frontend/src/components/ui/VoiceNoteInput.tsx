@@ -30,11 +30,11 @@ export function VoiceNoteInput({
   onKeyDown,
 }: VoiceNoteInputProps) {
   const [listening, setListening] = useState(false)
-  const recognitionRef = useRef<SpeechRecognition | null>(null)
+  const recognitionRef = useRef<any>(null)
 
   const SpeechRecognitionAPI =
     typeof window !== 'undefined'
-      ? window.SpeechRecognition ?? (window as typeof window & { webkitSpeechRecognition?: typeof SpeechRecognition }).webkitSpeechRecognition
+      ? (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition
       : undefined
 
   const supported = !!SpeechRecognitionAPI
@@ -56,7 +56,7 @@ export function VoiceNoteInput({
     recognition.onend = () => setListening(false)
     recognition.onerror = () => setListening(false)
 
-    recognition.onresult = (event: SpeechRecognitionEvent) => {
+    recognition.onresult = (event: any) => {
       const transcript = event.results[0][0].transcript.trim()
       // Append with a space if there's already text
       onChange(value ? `${value} ${transcript}` : transcript)
