@@ -48,7 +48,10 @@ export async function registerPushSubscription(): Promise<void> {
   }
 
   // 2. Only now do the slow service-worker work.
-  const registration = await navigator.serviceWorker.register('/sw.js')
+  const registration = await navigator.serviceWorker.register(
+    import.meta.env.DEV ? '/dev-sw.js?dev-sw' : '/sw.js',
+    { type: import.meta.env.DEV ? 'module' : 'classic' }
+  )
   await navigator.serviceWorker.ready
 
   await _subscribeAndRegister(registration, vapidKey)
@@ -73,7 +76,10 @@ export async function initServiceWorker(): Promise<void> {
   }
 
   try {
-    const registration = await navigator.serviceWorker.register('/sw.js')
+    const registration = await navigator.serviceWorker.register(
+      import.meta.env.DEV ? '/dev-sw.js?dev-sw' : '/sw.js',
+      { type: import.meta.env.DEV ? 'module' : 'classic' }
+    )
     // Safe to force an update check here — unlike registerPushSubscription()
     // this path never prompts, so there is no user activation to burn.
     await registration.update().catch(() => undefined)
