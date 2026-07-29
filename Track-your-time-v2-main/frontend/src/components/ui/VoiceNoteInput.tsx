@@ -8,7 +8,7 @@ interface VoiceNoteInputProps {
   onChange: (value: string) => void
   placeholder?: string
   disabled?: boolean
-  onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void
+  onKeyDown?: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void
 }
 
 /**
