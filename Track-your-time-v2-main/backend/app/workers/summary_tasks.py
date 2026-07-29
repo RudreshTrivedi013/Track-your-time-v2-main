@@ -27,33 +27,78 @@ from app.workers.celery_app import celery_app
 logger = logging.getLogger(__name__)
 
 
-def _task_stats(tasks: list) -> dict:
+def _build_stats_payload(tasks: list, activities: list) -> dict:
     completed = [t for t in tasks if t.status == TaskStatus.done]
     open_tasks = [t for t in tasks if t.status != TaskStatus.done]
     total_snoozes = sum(t.snoozed_count_today for t in tasks)
-    voice_count = sum(1 for t in tasks if t.source == TaskSource.voice)
-    text_count = sum(1 for t in tasks if t.source == TaskSource.text)
+    
+    # Format activities as a timeline
+    timeline = []
+    for a in sorted(activities, key=lambda x: x.timestamp):
+        # Format time as HH:MM
+        time_str = a.timestamp.strftime("%H:%M")
+        action = f"[{time_str}] {a.activity_type.value}: '{a.task_title}'"
+        if a.optional_notes:
+            action += f" (Note: {a.optional_notes})"
+        timeline.append(action)
+
     return {
-        "completed_count": len(completed),
-        "still_open_count": len(open_tasks),
-        "still_open_titles": [t.title for t in open_tasks][:10],
+        "completed_tasks": [t.title for t in completed],
+        "open_tasks": [t.title for t in open_tasks],
         "snooze_count": total_snoozes,
-        "voice_created": voice_count,
-        "text_created": text_count,
+        "activity_timeline": timeline,
     }
 
 
 # Async version — used by the FastAPI /summary/trigger endpoint
 async def build_daily_stats(db: AsyncSession, user_id) -> dict:
-    result = await db.execute(select(Task).where(Task.user_id == user_id))
-    tasks = list(result.scalars().all())
-    return _task_stats(tasks)
+    # Get today's local boundaries
+    from datetime import datetime, timezone
+    from zoneinfo import ZoneInfo
+    user = await db.get(User, user_id)
+    tz = ZoneInfo(user.timezone or "UTC") if user else ZoneInfo("UTC")
+    now = datetime.now(timezone.utc).astimezone(tz)
+    start_of_day = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    end_of_day = now.replace(hour=23, minute=59, second=59, microsecond=999999)
+
+    # Fetch tasks
+    tasks_result = await db.execute(select(Task).where(Task.user_id == user_id))
+    tasks = list(tasks_result.scalars().all())
+
+    # Fetch today's activities
+    from app.models.activity import ReminderActivity
+    act_result = await db.execute(
+        select(ReminderActivity).where(
+            ReminderActivity.user_id == user_id,
+            ReminderActivity.timestamp >= start_of_day,
+            ReminderActivity.timestamp <= end_of_day
+        )
+    )
+    activities = list(act_result.scalars().all())
+
+    return _build_stats_payload(tasks, activities)
 
 
 # Sync version — used by the Celery beat task
 def build_daily_stats_sync(db: Session, user_id) -> dict:
+    from datetime import datetime, timezone
+    from zoneinfo import ZoneInfo
+    user = db.query(User).get(user_id)
+    tz = ZoneInfo(user.timezone or "UTC") if user else ZoneInfo("UTC")
+    now = datetime.now(timezone.utc).astimezone(tz)
+    start_of_day = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    end_of_day = now.replace(hour=23, minute=59, second=59, microsecond=999999)
+
     tasks = db.query(Task).filter(Task.user_id == user_id).all()
-    return _task_stats(tasks)
+    
+    from app.models.activity import ReminderActivity
+    activities = db.query(ReminderActivity).filter(
+        ReminderActivity.user_id == user_id,
+        ReminderActivity.timestamp >= start_of_day,
+        ReminderActivity.timestamp <= end_of_day
+    ).all()
+
+    return _build_stats_payload(tasks, activities)
 
 
 def _publish_ws_summary(user_id: str, result: dict) -> None:
