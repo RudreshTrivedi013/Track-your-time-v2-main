@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react'
 import { Mic } from '@/lib/icons'
-import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import { useVoiceInput } from '@/hooks/useVoiceInput'
 
@@ -75,7 +74,7 @@ export function VoiceNoteInput({
   return (
     <div className="space-y-1">
       <div className="relative flex items-center">
-        <Input
+        <textarea
           value={displayValue}
           onChange={(e) => {
             // Block typed edits while recording to avoid conflicts.
@@ -87,8 +86,9 @@ export function VoiceNoteInput({
           // Suppress the cursor while recording so it's clear the field is driven by voice.
           readOnly={isRecording}
           className={cn(
+            "flex w-full min-h-[80px] resize-none rounded-xl border border-border bg-white/[0.03] px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus-visible:outline-none focus-visible:border-white/25 disabled:cursor-not-allowed disabled:opacity-50 transition-colors",
             isSupported && 'pr-10',
-            isRecording && 'border-red-400/50 focus-visible:ring-red-400/30',
+            isRecording && 'border-red-400/50 focus-visible:border-red-400/30',
           )}
         />
         {isSupported && (
@@ -98,7 +98,7 @@ export function VoiceNoteInput({
             disabled={disabled}
             aria-label={isRecording ? 'Stop recording' : 'Dictate note'}
             className={cn(
-              'absolute right-3 rounded-md p-0.5 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50',
+              'absolute top-3 right-3 rounded-md p-0.5 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50',
               isRecording
                 ? 'text-red-400 animate-pulse'
                 : 'text-text-secondary hover:text-text-primary',

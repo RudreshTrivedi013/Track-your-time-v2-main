@@ -27,25 +27,30 @@ from app.workers.celery_app import celery_app
 logger = logging.getLogger(__name__)
 
 
-def _build_stats_payload(tasks: list, activities: list) -> dict:
-    completed = [t for t in tasks if t.status == TaskStatus.done]
-    open_tasks = [t for t in tasks if t.status != TaskStatus.done]
-    total_snoozes = sum(t.snoozed_count_today for t in tasks)
-    
-    # Format activities as a timeline
+def _build_stats_payload(logs: list, missed_reminders: list) -> dict:
     timeline = []
-    for a in sorted(activities, key=lambda x: x.timestamp):
-        # Format time as HH:MM
-        time_str = a.timestamp.strftime("%H:%M")
-        action = f"[{time_str}] {a.activity_type.value}: '{a.task_title}'"
-        if a.optional_notes:
-            action += f" (Note: {a.optional_notes})"
-        timeline.append(action)
+    events = []
+    
+    for log in logs:
+        if log.note and str(log.note).strip():
+            # In case note is a JSON string from transcript
+            note_text = log.note
+            try:
+                parsed = json.loads(log.note)
+                if isinstance(parsed, dict) and "transcript" in parsed:
+                    note_text = parsed["transcript"]
+            except Exception:
+                pass
+            events.append({"time": log.start_at, "text": f"Check-in note: '{note_text}'"})
+            
+    for reminder in missed_reminders:
+        events.append({"time": reminder.scheduled_time, "text": "Missed check-in gap"})
+
+    for e in sorted(events, key=lambda x: x["time"]):
+        time_str = e["time"].astimezone().strftime("%I:%M %p") # 12-hour format is nicer for narratives
+        timeline.append(f"[{time_str}] {e['text']}")
 
     return {
-        "completed_tasks": [t.title for t in completed],
-        "open_tasks": [t.title for t in open_tasks],
-        "snooze_count": total_snoozes,
         "activity_timeline": timeline,
     }
 
@@ -61,22 +66,30 @@ async def build_daily_stats(db: AsyncSession, user_id) -> dict:
     start_of_day = now.replace(hour=0, minute=0, second=0, microsecond=0)
     end_of_day = now.replace(hour=23, minute=59, second=59, microsecond=999999)
 
-    # Fetch tasks
-    tasks_result = await db.execute(select(Task).where(Task.user_id == user_id))
-    tasks = list(tasks_result.scalars().all())
+    from app.models.companion import ProductivityLog, HourlyCheckinReminder, HourlyReminderStatus
 
-    # Fetch today's activities
-    from app.models.activity import ReminderActivity
-    act_result = await db.execute(
-        select(ReminderActivity).where(
-            ReminderActivity.user_id == user_id,
-            ReminderActivity.timestamp >= start_of_day,
-            ReminderActivity.timestamp <= end_of_day
+    # Fetch check-ins
+    logs_result = await db.execute(
+        select(ProductivityLog).where(
+            ProductivityLog.user_id == user_id,
+            ProductivityLog.start_at >= start_of_day,
+            ProductivityLog.start_at <= end_of_day
         )
     )
-    activities = list(act_result.scalars().all())
+    logs = list(logs_result.scalars().all())
 
-    return _build_stats_payload(tasks, activities)
+    # Fetch missed check-ins
+    reminders_result = await db.execute(
+        select(HourlyCheckinReminder).where(
+            HourlyCheckinReminder.user_id == user_id,
+            HourlyCheckinReminder.scheduled_time >= start_of_day,
+            HourlyCheckinReminder.scheduled_time <= end_of_day,
+            HourlyCheckinReminder.status == HourlyReminderStatus.missed
+        )
+    )
+    missed = list(reminders_result.scalars().all())
+
+    return _build_stats_payload(logs, missed)
 
 
 # Sync version — used by the Celery beat task
@@ -89,16 +102,22 @@ def build_daily_stats_sync(db: Session, user_id) -> dict:
     start_of_day = now.replace(hour=0, minute=0, second=0, microsecond=0)
     end_of_day = now.replace(hour=23, minute=59, second=59, microsecond=999999)
 
-    tasks = db.query(Task).filter(Task.user_id == user_id).all()
+    from app.models.companion import ProductivityLog, HourlyCheckinReminder, HourlyReminderStatus
+
+    logs = db.query(ProductivityLog).filter(
+        ProductivityLog.user_id == user_id,
+        ProductivityLog.start_at >= start_of_day,
+        ProductivityLog.start_at <= end_of_day
+    ).all()
     
-    from app.models.activity import ReminderActivity
-    activities = db.query(ReminderActivity).filter(
-        ReminderActivity.user_id == user_id,
-        ReminderActivity.timestamp >= start_of_day,
-        ReminderActivity.timestamp <= end_of_day
+    missed = db.query(HourlyCheckinReminder).filter(
+        HourlyCheckinReminder.user_id == user_id,
+        HourlyCheckinReminder.scheduled_time >= start_of_day,
+        HourlyCheckinReminder.scheduled_time <= end_of_day,
+        HourlyCheckinReminder.status == HourlyReminderStatus.missed
     ).all()
 
-    return _build_stats_payload(tasks, activities)
+    return _build_stats_payload(logs, missed)
 
 
 def _publish_ws_summary(user_id: str, result: dict) -> None:

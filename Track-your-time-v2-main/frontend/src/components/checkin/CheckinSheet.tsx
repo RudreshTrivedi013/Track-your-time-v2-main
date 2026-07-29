@@ -112,7 +112,14 @@ export function CheckinSheet({ open, reminderId, onClose }: CheckinSheetProps) {
         </DrawerHeader>
 
         <div className="space-y-4 px-4 pb-4">
-          <div className="space-y-2">
+          <VoiceNoteInput
+            value={note}
+            onChange={setNote}
+            placeholder="Add a note"
+            disabled={submitting}
+          />
+
+          <div className="grid grid-cols-3 gap-2">
             {STATUS_OPTIONS.map((option) => {
               const active = status === option.value
               return (
@@ -122,7 +129,7 @@ export function CheckinSheet({ open, reminderId, onClose }: CheckinSheetProps) {
                   onClick={() => setStatus(option.value)}
                   aria-pressed={active}
                   className={cn(
-                    'flex w-full min-h-[52px] items-center rounded-xl border px-4 text-sm font-medium transition-colors',
+                    'flex w-full min-h-[52px] items-center justify-center rounded-xl border px-2 text-sm font-medium transition-colors',
                     active
                       ? 'border-white bg-white text-bg'
                       : 'border-border bg-white/5 text-text-primary hover:bg-white/10',
@@ -133,16 +140,6 @@ export function CheckinSheet({ open, reminderId, onClose }: CheckinSheetProps) {
               )
             })}
           </div>
-
-          <VoiceNoteInput
-            value={note}
-            onChange={setNote}
-            placeholder="Add a note (optional)"
-            disabled={submitting}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') handleSave()
-            }}
-          />
 
           <div className="flex gap-2">
             <Button
