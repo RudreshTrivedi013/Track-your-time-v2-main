@@ -1,10 +1,12 @@
 import { useState, useCallback } from 'react'
 import { summaryApi } from '@/api/summary'
 import { parseApiError } from '@/lib/utils'
-import type { DaySummary } from '@/types/api'
+import type { DaySummary, DaySummaryLegacy } from '@/types/api'
+import { isLegacySummary } from '@/types/api'
 import toast from 'react-hot-toast'
 import { Sparkles, Loader2, ChevronDown } from 'lucide-react'
 import { SummaryCard } from './SummaryCard'
+import { LegacySummaryView } from './SummaryHistory'
 import { format } from 'date-fns'
 import { cn } from '@/lib/utils'
 
@@ -129,12 +131,18 @@ export function SummaryDrawer({ initialSummary }: SummaryDrawerProps = {}) {
           {/* Expanded: the summary card */}
           {open && (
             <div className="-mt-2 relative z-10">
-              <SummaryCard
-                date={dateLabel}
-                summary={summary}
-                onSave={handleSave}
-                onRegenerate={handleRegenerate}
-              />
+              {isLegacySummary(summary) ? (
+                <div className="bg-[#111214] border border-white/[0.07] rounded-2xl px-5 py-4">
+                  <LegacySummaryView content={summary as DaySummaryLegacy} />
+                </div>
+              ) : (
+                <SummaryCard
+                  date={dateLabel}
+                  summary={summary as DaySummary}
+                  onSave={handleSave}
+                  onRegenerate={handleRegenerate}
+                />
+              )}
             </div>
           )}
         </div>

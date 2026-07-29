@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils'
 import { SummaryCard } from './SummaryCard'
 
 // ── Legacy fallback view for old-format summaries ───────────────────────────
-function LegacySummaryView({ content }: { content: DaySummaryLegacy }) {
+export function LegacySummaryView({ content }: { content: DaySummaryLegacy }) {
   const summary = content.summary
   const highlight = content.highlight
   const concern = content.concern

@@ -19,7 +19,7 @@ export function SummaryCard({
   onRegenerate,
 }: SummaryCardProps) {
   // Which bullets to display: edited if available, else generated
-  const displayBullets = summary.edited_bullets ?? summary.generated_bullets
+  const displayBullets = summary.edited_bullets ?? summary.generated_bullets ?? []
 
   const [editing, setEditing] = useState(false)
   const [editText, setEditText] = useState('')
