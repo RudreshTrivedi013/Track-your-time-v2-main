@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
+from uuid import UUID
 from zoneinfo import ZoneInfo
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, func
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,7 +10,12 @@ from app.core.deps import get_current_user
 from app.database import get_db
 from app.models import User
 from app.models.companion import DailySummary
-from app.schemas.companion import SummaryHistoryOut, DailySummaryOut
+from app.schemas.companion import (
+    SummaryHistoryOut,
+    DailySummaryOut,
+    SummaryUpdateIn,
+    SummaryRegenerateOut,
+)
 from app.schemas.device import SummaryOut
 from app.workers.summary_tasks import build_daily_stats
 from app.services import summary_service
@@ -38,6 +44,84 @@ async def trigger_summary_manually(db: AsyncSession = Depends(get_db), user: Use
     await db.commit()
 
     return result
+
+
+@router.patch("/{summary_id}", response_model=SummaryOut)
+async def update_summary(
+    summary_id: UUID,
+    body: SummaryUpdateIn,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Save user edits to a summary. Sets is_edited=True and stores edited_bullets."""
+    stmt = select(DailySummary).where(
+        DailySummary.id == summary_id,
+        DailySummary.user_id == user.id,
+    )
+    result = await db.execute(stmt)
+    summary = result.scalar_one_or_none()
+
+    if not summary:
+        raise HTTPException(status_code=404, detail="Summary not found")
+
+    content = dict(summary.content)
+    content["edited_bullets"] = body.edited_bullets
+    content["is_edited"] = True
+
+    summary.content = content
+    await db.commit()
+    await db.refresh(summary)
+
+    return summary.content
+
+
+@router.post("/{summary_id}/regenerate", response_model=SummaryRegenerateOut)
+async def regenerate_summary(
+    summary_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Revision-style regenerate: refines the user's edited draft using the raw day data.
+
+    Backend enforces: only allowed when is_edited is True.
+    """
+    stmt = select(DailySummary).where(
+        DailySummary.id == summary_id,
+        DailySummary.user_id == user.id,
+    )
+    result = await db.execute(stmt)
+    summary = result.scalar_one_or_none()
+
+    if not summary:
+        raise HTTPException(status_code=404, detail="Summary not found")
+
+    content = dict(summary.content)
+    if not content.get("is_edited"):
+        raise HTTPException(
+            status_code=409,
+            detail="Cannot regenerate — summary has not been edited",
+        )
+
+    edited_bullets = content.get("edited_bullets", [])
+    if not edited_bullets:
+        raise HTTPException(
+            status_code=409,
+            detail="Cannot regenerate — no edited bullets found",
+        )
+
+    # Build fresh stats from current task data
+    stats = await build_daily_stats(db, user.id)
+
+    # Ask the AI to revise (not replace) the user's draft
+    new_generated = await summary_service.regenerate_summary(stats, edited_bullets)
+
+    # Update: replace generated_bullets, keep edited_bullets, keep is_edited=True
+    content["generated_bullets"] = new_generated
+    summary.content = content
+    await db.commit()
+    await db.refresh(summary)
+
+    return summary.content
 
 
 @router.get("/history", response_model=SummaryHistoryOut)

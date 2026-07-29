@@ -145,3 +145,18 @@ class SummaryHistoryOut(BaseModel):
     summaries: list[DailySummaryOut]
     total: int
 
+
+class SummaryUpdateIn(BaseModel):
+    """PATCH body for saving user edits to a summary."""
+    edited_bullets: list[str] = Field(..., min_length=1, max_length=20)
+
+
+class SummaryRegenerateOut(BaseModel):
+    """Response after a revision-style regenerate.
+
+    Only the generated_bullets change; edited_bullets are preserved as-is.
+    """
+    generated_bullets: list[str]
+    edited_bullets: list[str] | None = None
+    is_edited: bool = False
+

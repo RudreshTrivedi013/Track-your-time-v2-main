@@ -19,7 +19,12 @@ class DeviceOut(BaseModel):
 
 
 class SummaryOut(BaseModel):
-    summary: str
-    highlight: str
-    concern: str
-    tomorrow_suggestion: str
+    """New narrative-bullet summary shape.
+
+    - generated_bullets: the AI-produced bullets (always present)
+    - edited_bullets: the user's manual edits (null until the user edits)
+    - is_edited: convenience flag — True when edited_bullets is not None
+    """
+    generated_bullets: list[str]
+    edited_bullets: list[str] | None = None
+    is_edited: bool = False

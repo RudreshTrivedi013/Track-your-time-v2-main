@@ -87,16 +87,31 @@ def _run_for_user_sync(db: Session, user: User):
         # Save / Upsert to the DB
         tz = ZoneInfo(user.timezone or "UTC")
         local_date = datetime.now(timezone.utc).astimezone(tz).date()
-        
-        stmt = insert(DailySummary).values(
-            user_id=user.id,
-            date=local_date,
-            content=result,
-        ).on_conflict_do_update(
-            constraint="uq_daily_summary_user_date",
-            set_={"content": result, "created_at": datetime.now(timezone.utc)},
+
+        # Check if a summary already exists for today (may have user edits)
+        existing = (
+            db.query(DailySummary)
+            .filter(DailySummary.user_id == user.id, DailySummary.date == local_date)
+            .first()
         )
-        db.execute(stmt)
+
+        if existing and existing.content.get("is_edited"):
+            # User has edited today's summary — only update generated_bullets,
+            # preserve their edited_bullets and is_edited flag.
+            content = dict(existing.content)
+            content["generated_bullets"] = result["generated_bullets"]
+            existing.content = content
+        else:
+            # No existing summary or it hasn't been edited — full upsert
+            stmt = insert(DailySummary).values(
+                user_id=user.id,
+                date=local_date,
+                content=result,
+            ).on_conflict_do_update(
+                constraint="uq_daily_summary_user_date",
+                set_={"content": result, "created_at": datetime.now(timezone.utc)},
+            )
+            db.execute(stmt)
         db.commit()
     except Exception as exc:
         logger.error("Summary generation failed for user %s: %s", user.id, exc)

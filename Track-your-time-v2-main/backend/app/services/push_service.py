@@ -82,13 +82,13 @@ def build_summary_ready_payload(summary: dict) -> dict:
     The full 'summary' dict is embedded so the app can display the drawer contents
     immediately after tapping without an extra API call.
     """
-    # Construct a concise notification body from the summary fields.
-    body_parts = []
-    if summary.get("highlight"):
-        body_parts.append(f"✨ {summary['highlight']}")
-    if summary.get("concern"):
-        body_parts.append(f"⚠️ {summary['concern']}")
-    body = " • ".join(body_parts) if body_parts else summary.get("summary", "Your day-end summary is ready.")
+    # Construct a concise notification body from the first few bullets.
+    bullets = summary.get("generated_bullets", [])
+    if bullets:
+        # Show the first 2 bullets, truncated for notification readability
+        body = " • ".join(b[:80] for b in bullets[:2])
+    else:
+        body = "Your day-end summary is ready."
 
     return {
         "type": "summary_ready",

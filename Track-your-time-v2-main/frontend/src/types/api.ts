@@ -127,10 +127,28 @@ export interface Device {
 }
 
 export interface DaySummary {
+  generated_bullets: string[]
+  edited_bullets: string[] | null
+  is_edited: boolean
+}
+
+/** Old-format summaries stored before the migration to bullets. */
+export interface DaySummaryLegacy {
   summary: string
   highlight: string
   concern: string
   tomorrow_suggestion: string
+}
+
+/** Type guard: returns true if the content is old-format. */
+export function isLegacySummary(content: unknown): content is DaySummaryLegacy {
+  return (
+    typeof content === 'object' &&
+    content !== null &&
+    'summary' in content &&
+    'highlight' in content &&
+    !('generated_bullets' in content)
+  )
 }
 
 export interface TaskNote{
@@ -191,7 +209,7 @@ export interface DailySummaryOut {
   id: string
   user_id: string
   date: string
-  content: DaySummary
+  content: DaySummary | DaySummaryLegacy
   created_at: string
 }
 

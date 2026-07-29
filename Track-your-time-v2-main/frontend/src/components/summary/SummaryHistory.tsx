@@ -1,18 +1,66 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { summaryApi } from '@/api/summary'
 import { parseApiError } from '@/lib/utils'
-import type { DailySummaryOut } from '@/types/api'
+import type { DailySummaryOut, DaySummary } from '@/types/api'
+import { isLegacySummary } from '@/types/api'
 import toast from 'react-hot-toast'
 import { ChevronDown, Loader2, Zap, AlertTriangle, MapPin } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
+import { cn } from '@/lib/utils'
+import { SummaryCard } from './SummaryCard'
+
+// ── Legacy fallback view for old-format summaries ───────────────────────────
+function LegacySummaryView({ content }: { content: Record<string, unknown> }) {
+  const summary = content.summary as string
+  const highlight = content.highlight as string
+  const concern = content.concern as string
+  const tomorrowSuggestion = content.tomorrow_suggestion as string
+
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-text-secondary leading-relaxed">{summary}</p>
+      <div className="space-y-2 pt-1">
+        <div className="flex items-start gap-2.5">
+          <Zap size={14} className="text-success shrink-0 mt-[2px]" />
+          <p className="text-sm font-semibold text-text-primary leading-snug">{highlight}</p>
+        </div>
+        <div className="flex items-start gap-2.5">
+          <AlertTriangle size={14} className="text-warning shrink-0 mt-[2px]" />
+          <p className="text-sm font-semibold text-text-primary leading-snug">{concern}</p>
+        </div>
+        <div className="flex items-start gap-2.5">
+          <MapPin size={14} className="text-text-secondary shrink-0 mt-[2px]" />
+          <p className="text-sm font-semibold text-text-primary leading-snug">{tomorrowSuggestion}</p>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 // ── Single collapsible past-summary row ─────────────────────────────────────
 function PastSummaryRow({ s }: { s: DailySummaryOut }) {
   const [open, setOpen] = useState(false)
+  const [localContent, setLocalContent] = useState(s.content)
 
   const dateObj = parseISO(s.date)
-  const dateLabel = format(dateObj, 'EEEE, d MMMM')       // "Sunday, 19 July"
-  const timeLabel = format(new Date(s.created_at), 'h:mm aa')
+  const dateLabel = format(dateObj, 'EEEE, d MMMM')
+  const isLegacy = isLegacySummary(localContent)
+  const isEdited = !isLegacy && (localContent as DaySummary).is_edited
+
+  // ── Save user edits ───────────────────────────────────────────────────
+  const handleSave = useCallback(
+    async (editedBullets: string[]) => {
+      const updated = await summaryApi.updateSummary(s.id, editedBullets)
+      setLocalContent(updated)
+    },
+    [s.id],
+  )
+
+  // ── Regenerate (revision) ─────────────────────────────────────────────
+  const handleRegenerate = useCallback(async () => {
+    const updated = await summaryApi.regenerateSummary(s.id)
+    setLocalContent(updated)
+  }, [s.id])
 
   return (
     <div className="relative flex">
@@ -29,37 +77,37 @@ function PastSummaryRow({ s }: { s: DailySummaryOut }) {
           onClick={() => setOpen((v) => !v)}
           className="w-full bg-white/[0.04] hover:bg-white/[0.07] border border-white/[0.07] rounded-2xl px-5 py-3.5 flex items-center justify-between transition-colors duration-150"
         >
-          <span className="text-sm font-semibold text-text-primary">{dateLabel}</span>
+          <div className="flex items-center gap-2.5">
+            <span className="text-sm font-semibold text-text-primary">{dateLabel}</span>
+            {isEdited && (
+              <span className="text-[10px] text-text-muted bg-white/5 px-1.5 py-0.5 rounded">edited</span>
+            )}
+          </div>
           <ChevronDown
             size={16}
-            className={`text-text-muted transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+            className={cn(
+              'text-text-muted transition-transform duration-200',
+              open && 'rotate-180',
+            )}
           />
         </button>
 
         {/* Expanded content */}
         {open && (
-          <div className="bg-[#111214] border border-t-0 border-white/[0.07] rounded-b-2xl -mt-2 pt-5 pb-4 px-5 space-y-3">
-            {/* Time */}
-            <p className="text-xs text-text-muted">{timeLabel}</p>
-
-            {/* Overview sentence */}
-            <p className="text-sm text-text-secondary leading-relaxed">{s.content.summary}</p>
-
-            {/* Bullet points */}
-            <div className="space-y-2 pt-1">
-              <div className="flex items-start gap-2.5">
-                <Zap size={14} className="text-success shrink-0 mt-[2px]" />
-                <p className="text-sm font-semibold text-text-primary leading-snug">{s.content.highlight}</p>
+          <div className="-mt-2 relative z-10">
+            {isLegacy ? (
+              <div className="bg-[#111214] border border-white/[0.07] rounded-2xl px-5 py-4">
+                <LegacySummaryView content={localContent as Record<string, unknown>} />
               </div>
-              <div className="flex items-start gap-2.5">
-                <AlertTriangle size={14} className="text-warning shrink-0 mt-[2px]" />
-                <p className="text-sm font-semibold text-text-primary leading-snug">{s.content.concern}</p>
-              </div>
-              <div className="flex items-start gap-2.5">
-                <MapPin size={14} className="text-text-secondary shrink-0 mt-[2px]" />
-                <p className="text-sm font-semibold text-text-primary leading-snug">{s.content.tomorrow_suggestion}</p>
-              </div>
-            </div>
+            ) : (
+              <SummaryCard
+                summaryId={s.id}
+                date={dateLabel}
+                summary={localContent as DaySummary}
+                onSave={handleSave}
+                onRegenerate={handleRegenerate}
+              />
+            )}
           </div>
         )}
       </div>
