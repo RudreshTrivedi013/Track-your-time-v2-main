@@ -4,8 +4,6 @@ import type { DaySummary } from '@/types/api'
 import toast from 'react-hot-toast'
 
 interface SummaryCardProps {
-  /** Summary ID from the database — needed for PATCH/regenerate calls. */
-  summaryId?: string
   date: string
   summary: DaySummary
   /** Called when the user saves an edit (blur). */
@@ -15,7 +13,6 @@ interface SummaryCardProps {
 }
 
 export function SummaryCard({
-  summaryId,
   date,
   summary,
   onSave,

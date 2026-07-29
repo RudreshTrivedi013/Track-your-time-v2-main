@@ -48,16 +48,22 @@ async def trigger_summary_manually(db: AsyncSession = Depends(get_db), user: Use
 
 @router.patch("/{summary_id}", response_model=SummaryOut)
 async def update_summary(
-    summary_id: UUID,
+    summary_id: str,
     body: SummaryUpdateIn,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
     """Save user edits to a summary. Sets is_edited=True and stores edited_bullets."""
-    stmt = select(DailySummary).where(
-        DailySummary.id == summary_id,
-        DailySummary.user_id == user.id,
-    )
+    if summary_id == "latest":
+        stmt = select(DailySummary).where(
+            DailySummary.user_id == user.id
+        ).order_by(DailySummary.date.desc()).limit(1)
+    else:
+        stmt = select(DailySummary).where(
+            DailySummary.id == UUID(summary_id),
+            DailySummary.user_id == user.id,
+        )
+    
     result = await db.execute(stmt)
     summary = result.scalar_one_or_none()
 
@@ -77,7 +83,7 @@ async def update_summary(
 
 @router.post("/{summary_id}/regenerate", response_model=SummaryRegenerateOut)
 async def regenerate_summary(
-    summary_id: UUID,
+    summary_id: str,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -85,10 +91,16 @@ async def regenerate_summary(
 
     Backend enforces: only allowed when is_edited is True.
     """
-    stmt = select(DailySummary).where(
-        DailySummary.id == summary_id,
-        DailySummary.user_id == user.id,
-    )
+    if summary_id == "latest":
+        stmt = select(DailySummary).where(
+            DailySummary.user_id == user.id
+        ).order_by(DailySummary.date.desc()).limit(1)
+    else:
+        stmt = select(DailySummary).where(
+            DailySummary.id == UUID(summary_id),
+            DailySummary.user_id == user.id,
+        )
+    
     result = await db.execute(stmt)
     summary = result.scalar_one_or_none()
 

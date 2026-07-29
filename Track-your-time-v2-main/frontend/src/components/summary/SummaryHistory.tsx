@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { summaryApi } from '@/api/summary'
 import { parseApiError } from '@/lib/utils'
-import type { DailySummaryOut, DaySummary } from '@/types/api'
+import type { DailySummaryOut, DaySummary, DaySummaryLegacy } from '@/types/api'
 import { isLegacySummary } from '@/types/api'
 import toast from 'react-hot-toast'
 import { ChevronDown, Loader2, Zap, AlertTriangle, MapPin } from 'lucide-react'
@@ -10,11 +10,11 @@ import { cn } from '@/lib/utils'
 import { SummaryCard } from './SummaryCard'
 
 // ── Legacy fallback view for old-format summaries ───────────────────────────
-function LegacySummaryView({ content }: { content: Record<string, unknown> }) {
-  const summary = content.summary as string
-  const highlight = content.highlight as string
-  const concern = content.concern as string
-  const tomorrowSuggestion = content.tomorrow_suggestion as string
+function LegacySummaryView({ content }: { content: DaySummaryLegacy }) {
+  const summary = content.summary
+  const highlight = content.highlight
+  const concern = content.concern
+  const tomorrowSuggestion = content.tomorrow_suggestion
 
   return (
     <div className="space-y-3">
@@ -97,11 +97,10 @@ function PastSummaryRow({ s }: { s: DailySummaryOut }) {
           <div className="-mt-2 relative z-10">
             {isLegacy ? (
               <div className="bg-[#111214] border border-white/[0.07] rounded-2xl px-5 py-4">
-                <LegacySummaryView content={localContent as Record<string, unknown>} />
+                <LegacySummaryView content={localContent as DaySummaryLegacy} />
               </div>
             ) : (
               <SummaryCard
-                summaryId={s.id}
                 date={dateLabel}
                 summary={localContent as DaySummary}
                 onSave={handleSave}

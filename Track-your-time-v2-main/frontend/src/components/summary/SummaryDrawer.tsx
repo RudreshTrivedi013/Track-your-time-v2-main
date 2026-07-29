@@ -15,7 +15,6 @@ interface SummaryDrawerProps {
 export function SummaryDrawer({ initialSummary }: SummaryDrawerProps = {}) {
   const [generating, setGenerating] = useState(false)
   const [summary, setSummary] = useState<DaySummary | null>(initialSummary ?? null)
-  const [summaryId, setSummaryId] = useState<string | null>(null)
   const [generatedAt, setGeneratedAt] = useState<Date | null>(initialSummary ? new Date() : null)
   const [open, setOpen] = useState(false)
 
@@ -38,31 +37,18 @@ export function SummaryDrawer({ initialSummary }: SummaryDrawerProps = {}) {
   // ── Save user edits ─────────────────────────────────────────────────────
   const handleSave = useCallback(
     async (editedBullets: string[]) => {
-      if (!summaryId) {
-        // For freshly triggered summaries that don't have a DB id yet,
-        // we update local state. The next history fetch will pick up the id.
-        setSummary((prev) =>
-          prev
-            ? { ...prev, edited_bullets: editedBullets, is_edited: true }
-            : prev,
-        )
-        return
-      }
-      const updated = await summaryApi.updateSummary(summaryId, editedBullets)
+      // Use 'latest' to target the most recent summary for this user (which is the one in the drawer)
+      const updated = await summaryApi.updateSummary('latest', editedBullets)
       setSummary(updated)
     },
-    [summaryId],
+    [],
   )
 
   // ── Regenerate (revision, not reset) ────────────────────────────────────
   const handleRegenerate = useCallback(async () => {
-    if (!summaryId) {
-      toast.error('Save the summary first before regenerating')
-      return
-    }
-    const updated = await summaryApi.regenerateSummary(summaryId)
+    const updated = await summaryApi.regenerateSummary('latest')
     setSummary(updated)
-  }, [summaryId])
+  }, [])
 
   const now = new Date()
   const dateLabel = generatedAt
@@ -144,7 +130,6 @@ export function SummaryDrawer({ initialSummary }: SummaryDrawerProps = {}) {
           {open && (
             <div className="-mt-2 relative z-10">
               <SummaryCard
-                summaryId={summaryId ?? undefined}
                 date={dateLabel}
                 summary={summary}
                 onSave={handleSave}
