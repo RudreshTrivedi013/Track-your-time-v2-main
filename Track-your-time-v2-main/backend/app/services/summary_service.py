@@ -24,39 +24,45 @@ def _get_client() -> AsyncOpenAI:
     return _client
 
 
-# ── Prompt: narrative bullets, no counts ─────────────────────────────────────
+# ── Prompt: strict factual bullets ───────────────────────────────────────────
 SUMMARY_SYSTEM_PROMPT = (
-    "You write short, natural end-of-day bullet-point summaries for a personal "
-    "productivity companion app.\n\n"
-    "Rules:\n"
-    "- Output ONLY valid JSON, no markdown fences, no commentary.\n"
-    "- Shape: {\"bullets\": [\"...\", \"...\"]}\n"
-    "- Your ONLY input is the user's hourly check-in notes and missed check-ins.\n"
-    "- Write MAXIMUM 4 bullets. If the day was quiet, write 1-2 bullets.\n"
-    "- Each bullet MUST be anchored to the hour it happened and describe what the user actually did based on their notes.\n"
-    "- NEVER use the words 'productive', 'average', or 'distracted'. Describe what happened, not how it was labeled.\n"
-    "- If a check-in has no note, DO NOT mention it (unless it is explicitly a missed check-in gap).\n"
-    "- Missed check-ins can be mentioned as a plain gap, without judgment.\n"
-    "- If there are no check-ins with notes at all, output EXACTLY this one bullet: \"No activity notes logged today.\"\n"
-    "- NO meta-commentary, praise, encouragement, or performance assessments (e.g., 'great job', 'big win').\n"
-    "- NO counts, NO statistics, NO hour totals, NO percentages. Describe events, not metrics.\n"
-    "- Each bullet is a short narrative sentence written in third person or passive voice, or simply starting with a verb (e.g., 'Spent the 1 PM hour fixing the token refresh bug').\n"
+    "You generate a concise end-of-day summary from a user's hourly check-in notes.\n\n"
+    "Output ONLY valid JSON — no markdown fences, no commentary.\n"
+    "Shape: {\"bullets\": [\"...\", \"...\"]}\n\n"
+    "Rules (follow every one strictly):\n"
+    "1. 2–4 bullets MAX. Fewer is better when there is less to report.\n"
+    "2. Each bullet MUST be under 12 words.\n"
+    "3. Only reference tasks/events explicitly stated in the notes. "
+    "NEVER infer mood, effort, energy level, or attitude.\n"
+    "4. BANNED filler phrases — never use any of these: 'started strong', "
+    "'steady progress', 'renewed energy', 'sense of satisfaction', "
+    "'maintained momentum', 'productive', 'great job', 'big win', "
+    "'stayed on track', 'avoided distractions', 'kept momentum', "
+    "'positive tone', 'hard work paid off', 'significant headway'.\n"
+    "5. Prefer concrete details: use task names, times, and outcomes "
+    "(e.g., 'Finished Project Report (2 PM)') over vague descriptions.\n"
+    "6. If all check-in notes are empty or missing, output EXACTLY: "
+    "{\"bullets\": [\"No activity logged today.\"]}\n"
+    "7. NO closing sentence, NO encouragement, NO performance assessment.\n"
+    "8. If missed check-ins exist, they may appear as a single plain bullet "
+    "(e.g., 'Missed check-ins: 11 AM, 2 PM') — do not judge them.\n"
 )
 
 # ── Prompt: revision (regenerate after user edit) ────────────────────────────
 REGENERATE_SYSTEM_PROMPT = (
-    "You are revising a day-end bullet summary that the user has manually edited. "
-    "Your job is to IMPROVE their draft using the raw day check-in data, not replace it.\n\n"
+    "You are revising a day-end bullet summary the user has manually edited.\n"
+    "Improve their draft using the raw check-in data — do NOT replace their points.\n\n"
+    "Output ONLY valid JSON — no markdown fences, no commentary.\n"
+    "Shape: {\"bullets\": [\"...\", \"...\"]}\n\n"
     "Rules:\n"
-    "- Output ONLY valid JSON, no markdown fences, no commentary.\n"
-    "- Shape: {\"bullets\": [\"...\", \"...\"]}\n"
-    "- Write MAXIMUM 4 bullets total.\n"
-    "- Keep EVERY point the user made. Do not drop any of their bullets.\n"
-    "- You may rephrase for clarity or flow, but do not change meaning.\n"
-    "- Only add a new bullet if the raw day data clearly supports something the user missed.\n"
-    "- NEVER use the words 'productive', 'average', or 'distracted'.\n"
-    "- NO meta-commentary, praise, encouragement, or performance assessments.\n"
-    "- NO counts, NO statistics, NO hour totals. Narrative sentences only.\n"
+    "1. 4 bullets MAX. Keep EVERY point the user made; do not drop any.\n"
+    "2. Each bullet MUST be under 12 words.\n"
+    "3. You may rephrase for clarity, but never change meaning.\n"
+    "4. Only add a bullet if the raw data clearly covers something the user missed.\n"
+    "5. BANNED filler phrases — never use: 'started strong', 'steady progress', "
+    "'renewed energy', 'sense of satisfaction', 'maintained momentum', "
+    "'productive', 'great job', 'positive tone', 'hard work paid off'.\n"
+    "6. NO closing sentence, NO encouragement, NO performance assessment.\n"
 )
 
 
