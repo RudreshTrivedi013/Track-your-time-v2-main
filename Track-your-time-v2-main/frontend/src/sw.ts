@@ -166,16 +166,21 @@ self.addEventListener('push', (event) => {
 
     if (data.type === 'checkin') {
       event.waitUntil(
-        self.registration.showNotification('How’s it going?', {
+        self.registration.showNotification("How's it going?", {
           body: 'Log how the last hour went.',
           tag: data.tag,
           icon: ICON,
           badge: BADGE,
+          // NOTE: Android Chrome silently caps visible action buttons at 2.
+          // Keep the two most important actions first so they always appear.
           actions: [
-            { action: 'productive', title: 'Productive' },
-            { action: 'not_productive', title: 'Not productive' },
-            { action: 'add_task', title: 'Add task' },
+            { action: 'productive', title: '✅ Productive' },
+            { action: 'not_productive', title: '❌ Not productive' },
+            { action: 'remind_later', title: '⏰ Remind later' },
           ],
+          // Keep the notification on screen until the user explicitly acts.
+          // Without this it auto-dismisses on Android before the user taps.
+          requireInteraction: true,
           data: { action_token: data.action_token, reminder_id: data.reminder_id },
         } as NotificationOptions),
       )
@@ -202,6 +207,7 @@ async function focusOrOpen(targetUrl: string, message?: unknown) {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
   const { task_id, action_token, summary, url, reminder_id } = event.notification.data || {}
+  const action = event.action  // capture once; used in the fall-through guard below
 
   if (url === '/summary') {
     event.waitUntil(focusOrOpen('/summary', { type: 'SUMMARY_READY', summary }))
@@ -262,10 +268,20 @@ self.addEventListener('notificationclick', (event) => {
     return
   }
 
-  // Body tap. Check-ins deep-link into the check-in sheet; everything else
-  // just opens the app. Note these target '/' now that Dashboard and Tasks are
-  // merged — App.tsx keeps a permanent /dashboard redirect for workers that
-  // were installed before this release and still point there.
+  // Safety guard: if we reach here with a named action it means none of the
+  // branches above matched (unknown future action). Do nothing — do NOT open
+  // the app for an unrecognised action.
+  // On some Android Chrome builds, tapping a named action button fires two
+  // notificationclick events: one with event.action === 'productive' (handled
+  // and returned above) and a second spurious one with event.action === ''.
+  // Without this guard that second event falls through to focusOrOpen and
+  // opens the app even though the user only tapped an action button.
+  if (action !== '') return
+
+  // Body tap (action === ''). Check-ins deep-link into the check-in sheet;
+  // everything else just opens the app. Note these target '/' now that
+  // Dashboard and Tasks are merged — App.tsx keeps a permanent /dashboard
+  // redirect for workers installed before this release.
   const isCheckin = event.notification.tag === 'hourly-checkin'
   const targetUrl = isCheckin
     ? `/?checkin=1${reminder_id ? `&reminderId=${reminder_id}` : ''}`
