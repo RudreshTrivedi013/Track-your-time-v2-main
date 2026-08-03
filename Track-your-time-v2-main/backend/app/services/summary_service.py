@@ -41,10 +41,12 @@ SUMMARY_SYSTEM_PROMPT = (
     "'positive tone', 'hard work paid off', 'significant headway'.\n"
     "5. Prefer concrete details: use task names, times, and outcomes "
     "(e.g., 'Finished Project Report (2 PM)') over vague descriptions.\n"
-    "6. If all check-in notes are empty or missing, output EXACTLY: "
-    "{\"bullets\": [\"No activity logged today.\"]}\n"
+    "6. If there are NO check-in notes (only missed check-in gaps, or nothing at all), "
+    "output EXACTLY: {\"bullets\": [\"No activity logged today.\"]} — "
+    "do NOT mention the missed check-ins in this case.\n"
     "7. NO closing sentence, NO encouragement, NO performance assessment.\n"
-    "8. If missed check-ins exist, they may appear as a single plain bullet "
+    "8. If there ARE real activity notes AND also missed check-in gaps, "
+    "you MAY add a single plain bullet listing the gaps "
     "(e.g., 'Missed check-ins: 11 AM, 2 PM') — do not judge them.\n"
 )
 
